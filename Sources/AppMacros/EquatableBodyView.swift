@@ -2,7 +2,7 @@
     import SwiftUI
 
     /// `.equatable()` を「定義側の body」に焼き込み、使用側の付け忘れ（サイレント失敗）を
-    /// 原理的に不可能にする `View`（ADR-0015 案G）。
+    /// 原理的に不可能にする `View`。
     ///
     /// 通常の `@Equatable` + `.equatable()` は 2 箇所セットで書く必要があり、使用側で
     /// `.equatable()` を忘れると「コンパイル成功・無警告・効果ゼロ」のサイレント失敗になる。
@@ -31,7 +31,7 @@
     /// ```
     ///
     /// > 再描画抑制のランタイム効果（親 30 回 invalidate → `equatableBody` 1 回・overhead 無視可）は
-    /// > usapo-ios ADR-0015 のシミュレータ実測で検証済み。本パッケージのテストはコンパイル・展開・
+    /// > シミュレータ実測で検証済み。本パッケージのテストはコンパイル・展開・
     /// > 診断の正しさを担保する。
     public protocol EquatableBodyView: View, Equatable {
         associatedtype EquatableBody: View
