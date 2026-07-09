@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for the report. For **security** issues, do not file here — see
-        [SECURITY.md](../blob/master/SECURITY.md).
+        [SECURITY.md](https://github.com/9uiLe/swift-app-macros/blob/master/SECURITY.md).
   - type: textarea
     id: what-happened
     attributes:
