@@ -27,7 +27,7 @@ diff narrowing だけ。だが現状その適用は候補 9 View 中 2 つに留
 
 ```swift
 dependencies: [
-    .package(path: "../../swift-app-macros"),   // 追加
+    .package(url: "https://github.com/9uiLe/swift-app-macros.git", branch: "master"),   // 追加
     .package(url: "https://github.com/9uiLe/swift-scoped-animation.git", from: "0.2.0"),
     .package(url: "https://github.com/9uiLe/swift-tasking.git", from: "0.1.0"),
 ],

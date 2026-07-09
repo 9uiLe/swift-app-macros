@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift:
+    name: Swift package checks
+    # swift-tools-version 6.3 requires Swift 6.3 (Xcode 26.4+); macos-26's
+    # default Xcode satisfies this.
+    runs-on: macos-26
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build package
+        run: swift build
+
+      - name: Test package
+        run: swift test
+
+      # Verify the SwiftUI-facing code (EquatableBodyView) also compiles for
+      # iOS, not just the host macOS toolchain. The scheme name derives from
+      # the package name and does not depend on the checkout directory name.
+      - name: Build for iOS
+        run: |
+          xcodebuild build -quiet \
+            -scheme swift-app-macros \
+            -destination "generic/platform=iOS Simulator"

@@ -151,6 +151,12 @@ private struct EquatableExpansionContext {
 private struct EquatableProperty {
     let identifier: TokenSyntax
     let typeAnnotation: TypeSyntax?
+    let comparisonAccess: PropertyComparisonAccess
+}
+
+private enum PropertyComparisonAccess {
+    case direct
+    case stateWrappedValue
 }
 
 private struct PropertyAnalysis {
@@ -291,6 +297,9 @@ private func analyzeProperties(
             properties.append(EquatableProperty(
                 identifier: identifier,
                 typeAnnotation: binding.typeAnnotation?.type,
+                comparisonAccess: hasPropertyWrapper(named: "State", in: variable.attributes)
+                    ? .stateWrappedValue
+                    : .direct,
             ))
         }
     }
@@ -332,6 +341,15 @@ private func hasAttribute(named expectedName: String, in attributes: AttributeLi
         // binding, so callers must split multi-binding declarations before
         // marking a property.
         return typeNameMatches(attribute.attributeName, expectedName)
+    }
+}
+
+private func hasPropertyWrapper(named expectedName: String, in attributes: AttributeListSyntax) -> Bool {
+    attributes.contains { element in
+        guard let attribute = element.as(AttributeSyntax.self) else {
+            return false
+        }
+        return lastTypeName(attribute.attributeName) == expectedName
     }
 }
 
@@ -716,7 +734,7 @@ private func makeComparisonExpression(for properties: [EquatableProperty]) -> Ex
         return ExprSyntax(BooleanLiteralExprSyntax(literal: .keyword(.true)))
     }
 
-    let firstComparison = makeEqualityExpression(for: firstProperty.identifier)
+    let firstComparison = makeEqualityExpression(for: firstProperty)
 
     return properties.dropFirst().reduce(firstComparison) { partialResult, property in
         ExprSyntax(InfixOperatorExprSyntax(
@@ -724,16 +742,37 @@ private func makeComparisonExpression(for properties: [EquatableProperty]) -> Ex
             operator: ExprSyntax(BinaryOperatorExprSyntax(
                 operator: .binaryOperator("&&", leadingTrivia: .space, trailingTrivia: .space),
             )),
-            rightOperand: makeEqualityExpression(for: property.identifier),
+            rightOperand: makeEqualityExpression(for: property),
         ))
     }
 }
 
-private func makeEqualityExpression(for identifier: TokenSyntax) -> ExprSyntax {
-    let lhs = makeMemberAccess(baseName: "lhs", memberName: identifier)
-    let rhs = makeMemberAccess(baseName: "rhs", memberName: identifier)
+private func makeEqualityExpression(for property: EquatableProperty) -> ExprSyntax {
+    switch property.comparisonAccess {
+    case .direct:
+        let lhs = makeMemberAccess(baseName: "lhs", memberName: property.identifier)
+        let rhs = makeMemberAccess(baseName: "rhs", memberName: property.identifier)
+        return makeBinaryEquality(lhs: lhs, rhs: rhs)
 
-    return ExprSyntax(InfixOperatorExprSyntax(
+    case .stateWrappedValue:
+        // `@State` wrapped properties are MainActor-isolated on the struct accessor,
+        // but the backing `State` storage's `wrappedValue` is readable from
+        // `nonisolated ==` (SwiftUI's intended comparison path for `.equatable()`).
+        let backingName = "_\(property.identifier.text)"
+        let lhs = makeMemberAccess(
+            base: makeMemberAccess(baseName: "lhs", memberName: .identifier(backingName)),
+            memberName: .identifier("wrappedValue"),
+        )
+        let rhs = makeMemberAccess(
+            base: makeMemberAccess(baseName: "rhs", memberName: .identifier(backingName)),
+            memberName: .identifier("wrappedValue"),
+        )
+        return makeBinaryEquality(lhs: lhs, rhs: rhs)
+    }
+}
+
+private func makeBinaryEquality(lhs: ExprSyntax, rhs: ExprSyntax) -> ExprSyntax {
+    ExprSyntax(InfixOperatorExprSyntax(
         leftOperand: lhs,
         operator: ExprSyntax(BinaryOperatorExprSyntax(
             operator: .binaryOperator("==", leadingTrivia: .space, trailingTrivia: .space),
@@ -743,8 +782,15 @@ private func makeEqualityExpression(for identifier: TokenSyntax) -> ExprSyntax {
 }
 
 private func makeMemberAccess(baseName: String, memberName: TokenSyntax) -> ExprSyntax {
-    ExprSyntax(MemberAccessExprSyntax(
+    makeMemberAccess(
         base: ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(baseName))),
+        memberName: memberName,
+    )
+}
+
+private func makeMemberAccess(base: ExprSyntax, memberName: TokenSyntax) -> ExprSyntax {
+    ExprSyntax(MemberAccessExprSyntax(
+        base: base,
         period: .periodToken(),
         declName: DeclReferenceExprSyntax(baseName: .identifier(memberName.text)),
     ))

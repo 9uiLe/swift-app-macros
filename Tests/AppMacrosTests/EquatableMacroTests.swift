@@ -442,7 +442,7 @@ struct EquatableMacroTests {
                     }
 
                     nonisolated static func == (lhs: Panel, rhs: Panel) -> Bool {
-                        return lhs.count == rhs.count && lhs.state == rhs.state
+                        return lhs._count.wrappedValue == rhs._count.wrappedValue && lhs.state == rhs.state
                     }
                 }
                 """,
