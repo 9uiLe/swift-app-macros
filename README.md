@@ -1,5 +1,8 @@
 # AppMacros
 
+[![Swift](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2F9uiLe%2Fswift-app-macros%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/9uiLe/swift-app-macros)
+[![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2F9uiLe%2Fswift-app-macros%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/9uiLe/swift-app-macros)
+
 Production-oriented Swift macros for app development.
 
 `swift-app-macros` ships [`AppMacros`](Sources/AppMacros): SwiftUI redraw
