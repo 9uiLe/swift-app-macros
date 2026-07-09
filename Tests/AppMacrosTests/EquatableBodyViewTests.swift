@@ -84,7 +84,7 @@ struct EquatableBodyViewTests {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale, ADR-0015); hoist state to a parent and pass value props",
+                        message: "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props",
                         line: 3,
                         column: 5,
                     ),
@@ -124,7 +124,7 @@ struct EquatableBodyViewTests {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate, ADR-0015); put the content in `equatableBody`",
+                        message: "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate); put the content in `equatableBody`",
                         line: 4,
                         column: 5,
                         fixIts: [
@@ -215,7 +215,7 @@ struct EquatableBodyViewTests {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate, ADR-0015); put the content in `equatableBody`",
+                        message: "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate); put the content in `equatableBody`",
                         line: 5,
                         column: 5,
                         fixIts: [
@@ -244,7 +244,7 @@ struct EquatableBodyViewTests {
         }
     }
 
-    // num-path's core convention — a directly-declared `: View, Equatable`. Proves the
+    // A directly-declared `: View, Equatable` (a common convention). Proves the
     // macro's nonisolated member witnesses a directly-written Equatable conformance.
     @Equatable
     private struct RuntimeDirectEqView: View, Equatable {

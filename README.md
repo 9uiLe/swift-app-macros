@@ -41,7 +41,7 @@ This is an early package targeting the latest Apple SDKs. Older OS / Swift versi
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/9uiLe/swift-app-macros.git", branch: "master"),
+    .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.1.0"),
 ],
 targets: [
     .target(name: "YourFeature", dependencies: [
@@ -49,8 +49,6 @@ targets: [
     ]),
 ]
 ```
-
-After the first tagged release, prefer `.from: "0.1.0"` instead of `branch: "master"`.
 
 ## Documentation
 
@@ -71,6 +69,10 @@ swift test   # 44 tests / 4 suites
 ```
 
 CI runs on pull requests (`.github/workflows/ci.yml`).
+
+## Changelog
+
+Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 

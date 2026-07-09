@@ -56,7 +56,7 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
             return []
         }
 
-        // ADR-0015 stale-safety diagnostics. Emitted only here (the extension role
+        // Stale-safety diagnostics. Emitted only here (the extension role
         // always runs for a struct) so they fire exactly once regardless of shape.
         diagnoseEquatableBodyViewViolations(in: structDecl, context: context)
 
@@ -178,9 +178,9 @@ private enum EquatableDiagnostic: DiagnosticMessage {
         case .unsupportedPattern:
             "@Equatable only supports simple stored property names"
         case .equatableBodyViewForbiddenDynamicProperty:
-            "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale, ADR-0015); hoist state to a parent and pass value props"
+            "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props"
         case .equatableBodyViewDirectBody:
-            "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate, ADR-0015); put the content in `equatableBody`"
+            "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate); put the content in `equatableBody`"
         case .viewLikeStructNeedsNonisolated:
             "Struct declares `body: some View` without directly conforming to `View`; add `: View` to the struct declaration or use `@Equatable(.nonisolated)` so `.equatable()` can call `==` without actor hops"
         }
@@ -359,8 +359,8 @@ private func hasDynamicPropertyWrapper(in attributes: AttributeListSyntax) -> Bo
     // equality (they are non-Equatable and/or trap when read outside `body`).
     //
     // `@State` is deliberately NOT in this list: its value is Equatable and is meant to
-    // be compared. Excluding it would diverge from the validated EquatableBodyView design
-    // (ADR-0015 lists `@State` as supported), where a skipped `@State` can go stale.
+    // be compared. Excluding it would diverge from the EquatableBodyView design
+    // (which treats `@State` as supported), where a skipped `@State` can go stale.
     // Custom or future wrappers still need @SkipEquatable.
     let skippedWrapperNames: Set<String> = [
         "AppStorage",
@@ -442,7 +442,7 @@ private func conformanceTypeMatches(_ type: some TypeSyntaxProtocol, _ expectedN
     return typeNameMatches(type, expectedName)
 }
 
-/// ADR-0015: on an `EquatableBodyView` conformer, forbid non-Equatable dynamic
+/// On an `EquatableBodyView` conformer, forbid non-Equatable dynamic
 /// properties (stale bug) and a direct `body` declaration (bypasses the gate).
 private func diagnoseEquatableBodyViewViolations(
     in structDecl: StructDeclSyntax,
