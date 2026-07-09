@@ -11,7 +11,7 @@ reference for the specific API you need.
 | [Rationale](rationale.md) | Why an `Equatable` macro exists — the SwiftUI / Swift 6 pitfalls it removes |
 | [`@Equatable`](equatable.md) | Generated `Equatable` conformance: generation form, auto-exclusions, generics, examples |
 | [`@SkipEquatable`](skip-equatable.md) | Excluding a specific stored property from comparison |
-| [`EquatableBodyView`](equatable-body-view.md) | Baking `.equatable()` into the view definition (ADR-0015) |
+| [`EquatableBodyView`](equatable-body-view.md) | Baking `.equatable()` into the view definition |
 | [Adoption guide](adoption.md) | Safe adoption checklist and known limitations |
 
 For a quick start, installation, and compatibility, see the

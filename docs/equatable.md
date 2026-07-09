@@ -25,7 +25,7 @@ Global-actor 属性の自動検出は `@MainActor` と、属性名が `*Actor`�
   （`@Binding`, `@Environment`, `@ScaledMetric`, `@FocusedValue`, `@ObservedObject` ほか。
   非 Equatable／`body` 外で読むとトラップするため）
 - **`@State` は除外しない**。生成 `==` は `_count.wrappedValue` 経由で比較する
-  （MainActor 隔離のアクセサを bypass し、EquatableBodyView で stale にならないため・ADR-0015）
+  （MainActor 隔離のアクセサを bypass し、EquatableBodyView で stale にならないため）
 
 複数バインディング（`let a, b: Int`）は各識別子を個別に比較する。ジェネリック型は
 比較対象プロパティの型パラメータに `: Equatable` 制約を付ける。

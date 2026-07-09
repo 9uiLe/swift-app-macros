@@ -1,4 +1,4 @@
-# `EquatableBodyView`（付け忘れ防止・ADR-0015）
+# `EquatableBodyView`（付け忘れ防止）
 
 > [ドキュメント目次](README.md) ・ [README](../README.md)
 
