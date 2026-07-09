@@ -2,6 +2,11 @@ name: CI
 
 on:
   pull_request:
+  workflow_dispatch:
+
+# Least-privilege default: the build/test jobs only need to read the checkout.
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

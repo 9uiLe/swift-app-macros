@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/9uiLe/swift-app-macros/discussions
+    about: Ask usage questions or discuss ideas here (enable Discussions to use this).
+  - name: Security vulnerability
+    url: https://github.com/9uiLe/swift-app-macros/security/advisories/new
+    about: Report security issues privately — do not open a public issue.

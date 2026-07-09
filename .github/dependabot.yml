@@ -1,0 +1,19 @@
+# Dependabot keeps the CI actions and the swift-syntax pin up to date.
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # GitHub Actions used by the CI workflow (actions/checkout, etc.).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+
+  # Swift Package Manager dependencies (swift-syntax exact pin).
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "deps"

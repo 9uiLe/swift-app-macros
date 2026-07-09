@@ -1,0 +1,40 @@
+name: Bug report
+description: Report incorrect macro expansion, a diagnostic, or a redraw problem
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For **security** issues, do not file here — see
+        [SECURITY.md](../blob/master/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+      placeholder: The generated `==` compares ... but I expected ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest `@Equatable` / `@SkipEquatable` / `EquatableBodyView` snippet that shows the problem.
+      render: swift
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Environment
+      description: Package version/commit, Swift toolchain, Xcode, and target platform.
+      placeholder: "swift-app-macros @0.1.0, Swift 6.3, Xcode 26.4, iOS 26 Simulator"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Expanded output (`-Xfrontend -dump-macro-expansions` if handy), logs, or screenshots.
+    validations:
+      required: false
