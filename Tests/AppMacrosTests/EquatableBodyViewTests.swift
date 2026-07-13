@@ -14,10 +14,7 @@ import Testing
 
 @Suite("EquatableBodyView")
 struct EquatableBodyViewTests {
-    // A conformer writes `: EquatableBodyView` (not literal View/Equatable). It gets the
-    // nonisolated member AND an explicit `extension: Equatable {}` anchor — the member
-    // does not witness an *inherited* Equatable conformance without it.
-    @Test("conformer: nonisolated member + Equatable anchor")
+    @Test("EquatableBodyView conformer emits nonisolated == plus an explicit Equatable anchor extension")
     func conformerExpansion() throws {
         #if canImport(AppMacrosMacros)
             assertMacroExpansion(
@@ -147,9 +144,7 @@ struct EquatableBodyViewTests {
         #endif
     }
 
-    // #5: a protocol-composition conformance is detected (nonisolated member, and
-    // no redundant `: Equatable` extension since Equatable is written directly).
-    @Test("protocol composition View & Equatable is detected")
+    @Test("protocol composition View & Equatable gets nonisolated == without a redundant Equatable extension")
     func compositionConformance() throws {
         #if canImport(AppMacrosMacros)
             assertMacroExpansion(
@@ -179,8 +174,6 @@ struct EquatableBodyViewTests {
         #endif
     }
 
-    // #2: a `body` hidden inside `#if` is still diagnosed (the diagnostics recurse
-    // into conditional-compilation blocks).
     @Test("forbids a body declared inside #if")
     func forbidsConditionalBody() throws {
         #if canImport(AppMacrosMacros)
@@ -232,8 +225,6 @@ struct EquatableBodyViewTests {
 #if canImport(SwiftUI)
     import SwiftUI
 
-    // Real conformer: proves the macro output + the EquatableBodyView default body +
-    // _EquatableHost all compile together and the generated == ignores the closure.
     @Equatable
     private struct RuntimeChipView: EquatableBodyView {
         let title: String
@@ -244,8 +235,6 @@ struct EquatableBodyViewTests {
         }
     }
 
-    // A directly-declared `: View, Equatable` (a common convention). Proves the
-    // macro's nonisolated member witnesses a directly-written Equatable conformance.
     @Equatable
     private struct RuntimeDirectEqView: View, Equatable {
         let value: Int
@@ -255,8 +244,6 @@ struct EquatableBodyViewTests {
         }
     }
 
-    // #1: a View holding @State must COMPILE — the generated nonisolated == reads the
-    // @State value (proves @State is compared, not excluded).
     @Equatable
     private struct RuntimeStatefulView: View {
         @State private var count = 0
@@ -282,7 +269,6 @@ struct EquatableBodyViewTests {
         }
     }
 
-    // #5: protocol-composition conformance compiles end to end.
     @Equatable
     private struct RuntimeCompositionView: View & Equatable {
         let value: Int
@@ -313,6 +299,12 @@ struct EquatableBodyViewTests {
         func stateValueIsCompared() {
             #expect(RuntimeStateComparedView(title: "a", count: 1) == RuntimeStateComparedView(title: "a", count: 1))
             #expect(RuntimeStateComparedView(title: "a", count: 1) != RuntimeStateComparedView(title: "a", count: 2))
+        }
+
+        @Test("directly-written Equatable conformance is witnessed by the generated nonisolated ==")
+        func directEquatableConformanceIsWitnessed() {
+            #expect(RuntimeDirectEqView(value: 1) == RuntimeDirectEqView(value: 1))
+            #expect(RuntimeDirectEqView(value: 1) != RuntimeDirectEqView(value: 2))
         }
     }
 #endif

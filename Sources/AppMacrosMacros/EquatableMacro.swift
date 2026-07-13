@@ -337,9 +337,6 @@ private func hasAttribute(named expectedName: String, in attributes: AttributeLi
         guard let attribute = element.as(AttributeSyntax.self) else {
             return false
         }
-        // @SkipEquatable is a peer marker. Swift only permits it on a single
-        // binding, so callers must split multi-binding declarations before
-        // marking a property.
         return typeNameMatches(attribute.attributeName, expectedName)
     }
 }
@@ -433,8 +430,6 @@ private func hasDirectConformance(named expectedName: String, in structDecl: Str
     }
 }
 
-/// Matches a name against an inherited type, expanding a protocol composition
-/// (`View & Equatable`) into its elements so each is checked individually.
 private func conformanceTypeMatches(_ type: some TypeSyntaxProtocol, _ expectedName: String) -> Bool {
     if let composition = type.as(CompositionTypeSyntax.self) {
         return composition.elements.contains { conformanceTypeMatches($0.type, expectedName) }
@@ -442,8 +437,6 @@ private func conformanceTypeMatches(_ type: some TypeSyntaxProtocol, _ expectedN
     return typeNameMatches(type, expectedName)
 }
 
-/// On an `EquatableBodyView` conformer, forbid non-Equatable dynamic
-/// properties (stale bug) and a direct `body` declaration (bypasses the gate).
 private func diagnoseEquatableBodyViewViolations(
     in structDecl: StructDeclSyntax,
     context: some MacroExpansionContext,
@@ -452,10 +445,8 @@ private func diagnoseEquatableBodyViewViolations(
         return
     }
 
-    // Recurse into `#if` blocks so a `body` / forbidden wrapper hidden under a
-    // conditional is still caught. (A `body` declared in a *separate extension*
-    // cannot be seen by an attached macro at all — SE-0389 — and is documented as
-    // an inherent limitation.)
+    // A `body` declared in a *separate extension* cannot be seen by an attached
+    // macro at all (SE-0389) — an inherent limitation, not a missed diagnostic.
     for variable in variableDeclsIncludingConditional(structDecl.memberBlock.members) {
         if hasForbiddenDynamicProperty(in: variable.attributes) {
             context.diagnose(Diagnostic(
@@ -478,8 +469,6 @@ private func diagnoseEquatableBodyViewViolations(
     }
 }
 
-/// Warn when a struct looks like a SwiftUI `View` but `: View` is only declared in a
-/// separate extension, which forces isolated `==` and breaks `.equatable()`.
 private func diagnoseViewLikeStructWithoutDirectConformance(
     in structDecl: StructDeclSyntax,
     expansionContext: EquatableExpansionContext,
@@ -536,9 +525,8 @@ private func renameBodyToEquatableBodyFixIt(in variable: VariableDeclSyntax) -> 
     )
 }
 
-/// All `VariableDeclSyntax` directly in `members` plus those nested inside `#if`
-/// blocks. Used by diagnostics (which must see conditional declarations); the
-/// equality comparison deliberately does NOT recurse into `#if`.
+/// The equality comparison deliberately does NOT recurse into `#if`
+/// (only diagnostics need to see conditional declarations).
 private func variableDeclsIncludingConditional(
     _ members: MemberBlockItemListSyntax
 ) -> [VariableDeclSyntax] {

@@ -317,6 +317,38 @@ struct EquatableMacroTests {
         #endif
     }
 
+    @Test("properties declared inside #if are not compared")
+    func propertiesDeclaredInsideConditionalBlocksAreNotCompared() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    let platformValue: Int
+                    #endif
+                }
+                """,
+                expandedSource: """
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    let platformValue: Int
+                    #endif
+                }
+
+                extension S: Equatable {
+                    static func == (lhs: S, rhs: S) -> Bool {
+                        return lhs.id == rhs.id
+                    }
+                }
+                """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
     @Test("multi-binding vars compare every identifier")
     func multiBindingVarsCompareEveryIdentifier() throws {
         #if canImport(AppMacrosMacros)
@@ -366,6 +398,37 @@ struct EquatableMacroTests {
                     }
                 }
                 """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("SkipEquatable on a multi-binding declaration is diagnosed")
+    func skipEquatableOnMultiBindingDeclarationIsDiagnosed() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct S {
+                    let id: Int
+                    @SkipEquatable let a = 1, b = 2
+                }
+                """,
+                expandedSource: """
+                struct S {
+                    let id: Int
+                    let a = 1, b = 2
+                }
+
+                extension S: Equatable {
+                    static func == (lhs: S, rhs: S) -> Bool {
+                        return lhs.id == rhs.id
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(message: "peer macro can only be applied to a single variable", line: 4, column: 5),
+                ],
                 macros: testMacros,
             )
         #endif
@@ -481,6 +544,34 @@ struct EquatableMacroTests {
                 extension DerivedRow: Equatable {
                     static func == (lhs: DerivedRow, rhs: DerivedRow) -> Bool {
                         return lhs.value == rhs.value && lhs.derived == rhs.derived
+                    }
+                }
+                """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("typealiased closure is compared (documented limitation)")
+    func typealiasedClosureIsCompared() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Row {
+                    let state: Int
+                    let action: Action
+                }
+                """,
+                expandedSource: """
+                struct Row {
+                    let state: Int
+                    let action: Action
+                }
+
+                extension Row: Equatable {
+                    static func == (lhs: Row, rhs: Row) -> Bool {
+                        return lhs.state == rhs.state && lhs.action == rhs.action
                     }
                 }
                 """,
