@@ -295,10 +295,10 @@ struct EquatableBodyViewTests {
             #expect(RuntimeCompositionView(value: 1) != RuntimeCompositionView(value: 2))
         }
 
-        @Test("@State value is included in generated equality")
-        func stateValueIsCompared() {
-            #expect(RuntimeStateComparedView(title: "a", count: 1) == RuntimeStateComparedView(title: "a", count: 1))
-            #expect(RuntimeStateComparedView(title: "a", count: 1) != RuntimeStateComparedView(title: "a", count: 2))
+        @Test("@State value is excluded from generated equality")
+        func stateValueIsNotCompared() {
+            #expect(RuntimeStateComparedView(title: "a", count: 1) == RuntimeStateComparedView(title: "a", count: 2))
+            #expect(RuntimeStateComparedView(title: "a", count: 1) != RuntimeStateComparedView(title: "b", count: 1))
         }
 
         @Test("directly-written Equatable conformance is witnessed by the generated nonisolated ==")

@@ -21,11 +21,13 @@ Global-actor 属性の自動検出は `@MainActor` と、属性名が `*Actor`�
 - `static` / `class` / `lazy` メンバ
 - 関数・クロージャ型プロパティ（`() -> Void`, `@MainActor (T) -> Void`,
   `(() -> Void)?`, `[() -> Void]`、トップレベルがクロージャリテラルの初期化子）
-- `.nonisolated` 形のとき、environment/参照由来の SwiftUI dynamic property wrapper
-  （`@Binding`, `@Environment`, `@ScaledMetric`, `@FocusedValue`, `@ObservedObject` ほか。
-  非 Equatable／`body` 外で読むとトラップするため）
-- **`@State` は除外しない**。生成 `==` は `_count.wrappedValue` 経由で比較する
-  （MainActor 隔離のアクセサを bypass し、EquatableBodyView で stale にならないため）
+- nonisolated `==` を生成するとき（View / global-actor 型、および `.extension` を View に
+  明示指定した場合）、SwiftUI dynamic property wrapper
+  （`@State`, `@Binding`, `@Environment`, `@ScaledMetric`, `@FocusedValue`,
+  `@ObservedObject` ほか）。environment/参照由来の wrapper は非 Equatable／`body` 外で
+  読むとトラップし、`@State` はマウント後の実体が AttributeGraph 側にあるため
+  比較しても実状態を反映しない。`@State` の変更は `.equatable()` ゲートの下流を
+  直接 invalidate するため、除外しても stale にならない
 
 複数バインディング（`let a, b: Int`）は各識別子を個別に比較する。ジェネリック型は
 比較対象プロパティの型パラメータに `: Equatable` 制約を付ける。

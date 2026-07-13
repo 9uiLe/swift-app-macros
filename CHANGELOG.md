@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking**: `@State` properties are now excluded from the generated `==`.
+  After mounting, the source of truth for `@State` lives in AttributeGraph and
+  the backing storage read by `==` only echoes the initializer snapshot, so the
+  comparison was dead weight at best and a false negative at worst. `@State`
+  mutations invalidate below the `.equatable()` gate, so the exclusion cannot
+  go stale. This also unblocks non-Equatable `@State` values (e.g. `@Observable`
+  models), which previously made the generated `==` fail to compile.
+- Dynamic-property exclusion now follows witness isolation instead of expansion
+  shape: `@Equatable(.extension)` forced on a `View` no longer includes
+  environment/reference-derived wrappers in the comparison.
+
+### Added
+
+- Mounted render-suppression tests (`NSHostingView`) that assert the package's
+  core contract: equal inputs skip `equatableBody` re-evaluation while parent
+  invalidations and input changes propagate.
+
 ## [0.1.0] - 2026-07-10
 
 Initial public release.

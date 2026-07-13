@@ -22,7 +22,9 @@ struct ChipView: EquatableBodyView {
 ChipView(title: "x", onTap: onTap)  // 使用側は .equatable() 不要
 ```
 
-**適用範囲は stateless + `@State` 限定**。`@Equatable` が以下を診断エラーにする:
+**適用範囲は stateless + `@State` 限定**。`@State` は保持できるが比較対象外
+（変更はゲート下流を直接 invalidate するため stale にならない）。
+`@Equatable` が以下を診断エラーにする:
 
 - `@StateObject` / `@ObservedObject` / `@Binding`
 - `body` の直書き（本体は `equatableBody` へ）

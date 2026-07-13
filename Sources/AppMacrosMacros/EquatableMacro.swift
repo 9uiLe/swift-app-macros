@@ -75,9 +75,12 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
 
         switch expansionContext.shape {
         case .extensionConformance:
+            // Exclusion follows witness isolation, not expansion shape: a forced
+            // `.extension` on a View still emits a nonisolated `==`, which must not
+            // read environment/reference-derived wrappers.
             let analysis = analyzeProperties(
                 in: structDecl,
-                excludesDynamicProperties: false,
+                excludesDynamicProperties: expansionContext.requiresNonisolatedWitness,
             )
             analysis.diagnostics.forEach { diagnostic in
                 context.diagnose(diagnostic)
@@ -151,12 +154,6 @@ private struct EquatableExpansionContext {
 private struct EquatableProperty {
     let identifier: TokenSyntax
     let typeAnnotation: TypeSyntax?
-    let comparisonAccess: PropertyComparisonAccess
-}
-
-private enum PropertyComparisonAccess {
-    case direct
-    case stateWrappedValue
 }
 
 private struct PropertyAnalysis {
@@ -297,9 +294,6 @@ private func analyzeProperties(
             properties.append(EquatableProperty(
                 identifier: identifier,
                 typeAnnotation: binding.typeAnnotation?.type,
-                comparisonAccess: hasPropertyWrapper(named: "State", in: variable.attributes)
-                    ? .stateWrappedValue
-                    : .direct,
             ))
         }
     }
@@ -341,23 +335,14 @@ private func hasAttribute(named expectedName: String, in attributes: AttributeLi
     }
 }
 
-private func hasPropertyWrapper(named expectedName: String, in attributes: AttributeListSyntax) -> Bool {
-    attributes.contains { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            return false
-        }
-        return lastTypeName(attribute.attributeName) == expectedName
-    }
-}
-
 private func hasDynamicPropertyWrapper(in attributes: AttributeListSyntax) -> Bool {
-    // This syntactic allowlist covers Apple SwiftUI DynamicProperty wrappers that are
-    // environment/reference-derived and must NOT be read from generated nonisolated
-    // equality (they are non-Equatable and/or trap when read outside `body`).
-    //
-    // `@State` is deliberately NOT in this list: its value is Equatable and is meant to
-    // be compared. Excluding it would diverge from the EquatableBodyView design
-    // (which treats `@State` as supported), where a skipped `@State` can go stale.
+    // This syntactic allowlist covers Apple SwiftUI DynamicProperty wrappers that
+    // must NOT be read from generated nonisolated equality: they are non-Equatable,
+    // trap when read outside `body`, or — for `@State` — the mounted source of truth
+    // lives in AttributeGraph while the backing storage only echoes the initializer
+    // snapshot, so a comparison is dead weight at best and a false negative at worst.
+    // Excluding `@State` cannot go stale: its mutations invalidate below the
+    // `.equatable()` gate without consulting `==`.
     // Custom or future wrappers still need @SkipEquatable.
     let skippedWrapperNames: Set<String> = [
         "AppStorage",
@@ -381,6 +366,7 @@ private func hasDynamicPropertyWrapper(in attributes: AttributeListSyntax) -> Bo
         "ScaledMetric",
         "SceneStorage",
         "SectionedFetchRequest",
+        "State",
         "StateObject",
         "UIApplicationDelegateAdaptor",
         "WKApplicationDelegateAdaptor",
@@ -736,27 +722,9 @@ private func makeComparisonExpression(for properties: [EquatableProperty]) -> Ex
 }
 
 private func makeEqualityExpression(for property: EquatableProperty) -> ExprSyntax {
-    switch property.comparisonAccess {
-    case .direct:
-        let lhs = makeMemberAccess(baseName: "lhs", memberName: property.identifier)
-        let rhs = makeMemberAccess(baseName: "rhs", memberName: property.identifier)
-        return makeBinaryEquality(lhs: lhs, rhs: rhs)
-
-    case .stateWrappedValue:
-        // `@State` wrapped properties are MainActor-isolated on the struct accessor,
-        // but the backing `State` storage's `wrappedValue` is readable from
-        // `nonisolated ==` (SwiftUI's intended comparison path for `.equatable()`).
-        let backingName = "_\(property.identifier.text)"
-        let lhs = makeMemberAccess(
-            base: makeMemberAccess(baseName: "lhs", memberName: .identifier(backingName)),
-            memberName: .identifier("wrappedValue"),
-        )
-        let rhs = makeMemberAccess(
-            base: makeMemberAccess(baseName: "rhs", memberName: .identifier(backingName)),
-            memberName: .identifier("wrappedValue"),
-        )
-        return makeBinaryEquality(lhs: lhs, rhs: rhs)
-    }
+    let lhs = makeMemberAccess(baseName: "lhs", memberName: property.identifier)
+    let rhs = makeMemberAccess(baseName: "rhs", memberName: property.identifier)
+    return makeBinaryEquality(lhs: lhs, rhs: rhs)
 }
 
 private func makeBinaryEquality(lhs: ExprSyntax, rhs: ExprSyntax) -> ExprSyntax {
