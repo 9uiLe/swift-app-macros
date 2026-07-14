@@ -19,16 +19,32 @@ Global-actor 属性の自動検出は `@MainActor` と、属性名が `*Actor`�
 
 - computed property（`var x: Int { ... }`）、`body`
 - `static` / `class` / `lazy` メンバ
-- 関数・クロージャ型プロパティ（`() -> Void`, `@MainActor (T) -> Void`,
-  `(() -> Void)?`, `[() -> Void]`、トップレベルがクロージャリテラルの初期化子）
-- `.nonisolated` 形のとき、environment/参照由来の SwiftUI dynamic property wrapper
-  （`@Binding`, `@Environment`, `@ScaledMetric`, `@FocusedValue`, `@ObservedObject` ほか。
-  非 Equatable／`body` 外で読むとトラップするため）
-- **`@State` は除外しない**。生成 `==` は `_count.wrappedValue` 経由で比較する
-  （MainActor 隔離のアクセサを bypass し、EquatableBodyView で stale にならないため）
+- トップレベルが関数・クロージャ型のプロパティ（`() -> Void`, `@MainActor (T) -> Void`,
+  `(() -> Void)?`、トップレベルがクロージャリテラルの初期化子）
+- nonisolated `==` を生成するとき（View / global-actor 型、および `.extension` を View に
+  明示指定した場合）、SwiftUI dynamic property wrapper
+  （`@State`, `@Binding`, `@Environment`, `@ScaledMetric`, `@FocusedValue`,
+  `@ObservedObject` ほか）。environment/参照由来の wrapper は非 Equatable／`body` 外で
+  読むとトラップし、`@State` はマウント後の実体が AttributeGraph 側にあるため
+  比較しても実状態を反映しない。`@State` の変更は `.equatable()` ゲートの下流を
+  直接 invalidate するため、除外しても stale にならない
 
 複数バインディング（`let a, b: Int`）は各識別子を個別に比較する。ジェネリック型は
 比較対象プロパティの型パラメータに `: Equatable` 制約を付ける。
+
+## fail-closed 診断
+
+サイレントな取りこぼしは stale 描画に直結するため、比較対象にできないものは
+黙って除外せず診断する:
+
+- **`#if` ブロック内の格納プロパティ**（エラー）: 生成 `==` は `#if` へ再帰しない。
+  `@SkipEquatable` で明示的に除外するか、無条件に宣言すること
+- **関数型を内包する型**（エラー）: `[() -> Void]`、タプル・ジェネリック引数内の
+  クロージャなど。トップレベルの関数型と違い「明らかなコールバック」ではないため、
+  `@SkipEquatable` の明示を要求する
+- **比較対象が 1 つも残らない**（警告）: 入力（クロージャ・`@SkipEquatable`）を
+  すべて除外した結果 `==` が常に true になる場合。ゲート付き View は入力が変わって
+  も再描画されない
 
 ## 例
 

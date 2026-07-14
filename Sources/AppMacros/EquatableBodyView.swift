@@ -7,11 +7,13 @@
     /// 通常の `@Equatable` + `.equatable()` は 2 箇所セットで書く必要があり、使用側で
     /// `.equatable()` を忘れると「コンパイル成功・無警告・効果ゼロ」のサイレント失敗になる。
     /// `EquatableBodyView` は本体を `body` ではなく `equatableBody` に書かせ、`body` の既定実装が
-    /// `_EquatableHost(host: self).equatable()` を返すことで、使用側は通常の `Child(...)` 記法の
+    /// `.equatable()` 相当の再描画抑制を適用するため、使用側は通常の `Child(...)` 記法の
     /// まま再描画抑制が効く。
     ///
-    /// **適用範囲は stateless + `@State` 限定**。`@StateObject` / `@ObservedObject` / `@Binding` は
-    /// 非 Equatable ゆえ比較に反映されず stale バグになるため、`@Equatable` が診断エラーにする。
+    /// **適用範囲は stateless + 自己所有状態（`@State` / `@StateObject`）限定**。自己所有状態は
+    /// 保持できるが比較対象外（変更は `.equatable()` ゲートの下流を直接 invalidate するため
+    /// stale にならない）。`@ObservedObject` / `@Bindable` / `@Binding` は親が参照先を
+    /// 差し替えても比較に反映されず stale バグになるため、`@Equatable` が診断エラーにする。
     /// また本体を `body` に直書きすると既定実装の `.equatable()` ゲートをバイパスするため、これも
     /// `@Equatable` が診断エラーにする。
     ///
@@ -30,9 +32,8 @@
     /// ChipView(title: "x", onTap: onTap)
     /// ```
     ///
-    /// > 再描画抑制のランタイム効果（親 30 回 invalidate → `equatableBody` 1 回・overhead 無視可）は
-    /// > シミュレータ実測で検証済み。本パッケージのテストはコンパイル・展開・
-    /// > 診断の正しさを担保する。
+    /// > 再描画抑制のランタイム効果は、マウント済みヒエラルキーで非 Equatable な統制用
+    /// > View と比較するテスト（`RenderSuppressionTests`）が保証する。
     public protocol EquatableBodyView: View, Equatable {
         associatedtype EquatableBody: View
         /// 重い本体をここに書く（`body` は既定実装が `.equatable()` 注入に専有している）。
@@ -45,19 +46,17 @@
         }
     }
 
-    /// `equatableBody` を評価する内部ラッパー。`==` は準拠型（`@Equatable` 生成）に委譲するため、
-    /// 入力が等価な限り SwiftUI は `body`（= `equatableBody`）の評価をスキップできる。
-    ///
-    /// `host` は `nonisolated(unsafe)`。不変条件として「準拠型の比較対象プロパティは値型 / Sendable のみ」
+    /// `nonisolated struct`（SE-0449）により `==` はコンパイラ検査下で isolation なしに
+    /// `host` を読める。不変条件として「準拠型の比較対象プロパティは値型 / Sendable のみ」
     /// を前提とする（`@MainActor` 隔離下で `nonisolated ==` から安全に読むため・SE-0434）。
-    private struct _EquatableHost<Content: EquatableBodyView>: View, Equatable {
-        nonisolated(unsafe) let host: Content
+    private nonisolated struct _EquatableHost<Content: EquatableBodyView>: View, Equatable {
+        let host: Content
 
-        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        static func == (lhs: Self, rhs: Self) -> Bool {
             lhs.host == rhs.host
         }
 
-        var body: Content.EquatableBody {
+        @MainActor var body: Content.EquatableBody {
             host.equatableBody
         }
     }

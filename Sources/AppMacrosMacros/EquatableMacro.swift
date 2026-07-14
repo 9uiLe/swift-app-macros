@@ -23,6 +23,9 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
             in: structDecl,
             excludesDynamicProperties: true,
         )
+        analysis.warnings.forEach { warning in
+            context.diagnose(warning)
+        }
         analysis.diagnostics.forEach { diagnostic in
             context.diagnose(diagnostic)
         }
@@ -61,6 +64,11 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
         diagnoseEquatableBodyViewViolations(in: structDecl, context: context)
 
         let expansionContext = expansionContext(for: node, attachedTo: structDecl)
+        diagnoseConditionalStoredProperties(
+            in: structDecl,
+            expansionContext: expansionContext,
+            context: context,
+        )
         diagnoseViewLikeStructWithoutDirectConformance(
             in: structDecl,
             expansionContext: expansionContext,
@@ -75,10 +83,16 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
 
         switch expansionContext.shape {
         case .extensionConformance:
+            // Exclusion follows witness isolation, not expansion shape: a forced
+            // `.extension` on a View still emits a nonisolated `==`, which must not
+            // read environment/reference-derived wrappers.
             let analysis = analyzeProperties(
                 in: structDecl,
-                excludesDynamicProperties: false,
+                excludesDynamicProperties: expansionContext.requiresNonisolatedWitness,
             )
+            analysis.warnings.forEach { warning in
+                context.diagnose(warning)
+            }
             analysis.diagnostics.forEach { diagnostic in
                 context.diagnose(diagnostic)
             }
@@ -151,22 +165,20 @@ private struct EquatableExpansionContext {
 private struct EquatableProperty {
     let identifier: TokenSyntax
     let typeAnnotation: TypeSyntax?
-    let comparisonAccess: PropertyComparisonAccess
-}
-
-private enum PropertyComparisonAccess {
-    case direct
-    case stateWrappedValue
 }
 
 private struct PropertyAnalysis {
     let properties: [EquatableProperty]
     let diagnostics: [Diagnostic]
+    let warnings: [Diagnostic]
 }
 
 private enum EquatableDiagnostic: DiagnosticMessage {
     case onlyStruct
     case unsupportedPattern
+    case conditionalStoredProperty
+    case compositeFunctionType
+    case noComparedProperties
     case equatableBodyViewForbiddenDynamicProperty
     case equatableBodyViewDirectBody
     case viewLikeStructNeedsNonisolated
@@ -177,8 +189,14 @@ private enum EquatableDiagnostic: DiagnosticMessage {
             "@Equatable can only be attached to a struct"
         case .unsupportedPattern:
             "@Equatable only supports simple stored property names"
+        case .conditionalStoredProperty:
+            "@Equatable does not compare stored properties declared inside #if — the generated == would silently ignore platform-specific changes (stale view); mark it with @SkipEquatable to exclude it explicitly, or declare it unconditionally"
+        case .compositeFunctionType:
+            "@Equatable cannot compare a property whose type contains a function type, and silently excluding it would hide stale closure state; mark it with @SkipEquatable to exclude it explicitly"
+        case .noComparedProperties:
+            "@Equatable compares no stored properties here (all inputs were excluded); instances always compare equal, so an .equatable()-gated view never re-renders when these inputs change"
         case .equatableBodyViewForbiddenDynamicProperty:
-            "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props"
+            "@EquatableBodyView cannot compare @ObservedObject / @Bindable / @Binding (parent-swappable source, not Equatable → stale); hoist state to a parent and pass value props"
         case .equatableBodyViewDirectBody:
             "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate); put the content in `equatableBody`"
         case .viewLikeStructNeedsNonisolated:
@@ -192,6 +210,12 @@ private enum EquatableDiagnostic: DiagnosticMessage {
             MessageID(domain: "AppMacros.Equatable", id: "onlyStruct")
         case .unsupportedPattern:
             MessageID(domain: "AppMacros.Equatable", id: "unsupportedPattern")
+        case .conditionalStoredProperty:
+            MessageID(domain: "AppMacros.Equatable", id: "conditionalStoredProperty")
+        case .compositeFunctionType:
+            MessageID(domain: "AppMacros.Equatable", id: "compositeFunctionType")
+        case .noComparedProperties:
+            MessageID(domain: "AppMacros.Equatable", id: "noComparedProperties")
         case .equatableBodyViewForbiddenDynamicProperty:
             MessageID(domain: "AppMacros.Equatable", id: "equatableBodyViewForbiddenDynamicProperty")
         case .equatableBodyViewDirectBody:
@@ -203,7 +227,7 @@ private enum EquatableDiagnostic: DiagnosticMessage {
 
     var severity: DiagnosticSeverity {
         switch self {
-        case .viewLikeStructNeedsNonisolated:
+        case .viewLikeStructNeedsNonisolated, .noComparedProperties:
             .warning
         default:
             .error
@@ -255,13 +279,19 @@ private func analyzeProperties(
     let isView = hasDirectConformance(named: "View", in: structDecl)
     var properties: [EquatableProperty] = []
     var diagnostics: [Diagnostic] = []
+    var excludedComparableInput = false
 
     for member in structDecl.memberBlock.members {
         guard let variable = member.decl.as(VariableDeclSyntax.self) else {
             continue
         }
 
-        if isStaticClassOrLazy(variable) || hasAttribute(named: "SkipEquatable", in: variable.attributes) {
+        if isStaticClassOrLazy(variable) {
+            continue
+        }
+
+        if hasAttribute(named: "SkipEquatable", in: variable.attributes) {
+            excludedComparableInput = true
             continue
         }
 
@@ -288,23 +318,41 @@ private func analyzeProperties(
                 continue
             }
 
-            if containsFunctionType(binding.typeAnnotation?.type)
+            if isTopLevelFunctionType(binding.typeAnnotation?.type)
                 || hasTopLevelClosureLiteralInitializer(binding)
             {
+                excludedComparableInput = true
+                continue
+            }
+
+            if containsFunctionType(binding.typeAnnotation?.type) {
+                diagnostics.append(Diagnostic(
+                    node: Syntax(binding),
+                    message: EquatableDiagnostic.compositeFunctionType,
+                ))
                 continue
             }
 
             properties.append(EquatableProperty(
                 identifier: identifier,
                 typeAnnotation: binding.typeAnnotation?.type,
-                comparisonAccess: hasPropertyWrapper(named: "State", in: variable.attributes)
-                    ? .stateWrappedValue
-                    : .direct,
             ))
         }
     }
 
-    return PropertyAnalysis(properties: properties, diagnostics: diagnostics)
+    // Only deliberately dropped parent-value inputs (@SkipEquatable, closures)
+    // count toward the always-equal warning: excluded dynamic-property wrappers
+    // are not parent props (they self-invalidate through the graph), so a view
+    // holding only those legitimately compares equal.
+    var warnings: [Diagnostic] = []
+    if properties.isEmpty, excludedComparableInput, diagnostics.isEmpty {
+        warnings.append(Diagnostic(
+            node: Syntax(structDecl.structKeyword),
+            message: EquatableDiagnostic.noComparedProperties,
+        ))
+    }
+
+    return PropertyAnalysis(properties: properties, diagnostics: diagnostics, warnings: warnings)
 }
 
 private func isStaticClassOrLazy(_ variable: VariableDeclSyntax) -> Bool {
@@ -337,30 +385,18 @@ private func hasAttribute(named expectedName: String, in attributes: AttributeLi
         guard let attribute = element.as(AttributeSyntax.self) else {
             return false
         }
-        // @SkipEquatable is a peer marker. Swift only permits it on a single
-        // binding, so callers must split multi-binding declarations before
-        // marking a property.
         return typeNameMatches(attribute.attributeName, expectedName)
     }
 }
 
-private func hasPropertyWrapper(named expectedName: String, in attributes: AttributeListSyntax) -> Bool {
-    attributes.contains { element in
-        guard let attribute = element.as(AttributeSyntax.self) else {
-            return false
-        }
-        return lastTypeName(attribute.attributeName) == expectedName
-    }
-}
-
 private func hasDynamicPropertyWrapper(in attributes: AttributeListSyntax) -> Bool {
-    // This syntactic allowlist covers Apple SwiftUI DynamicProperty wrappers that are
-    // environment/reference-derived and must NOT be read from generated nonisolated
-    // equality (they are non-Equatable and/or trap when read outside `body`).
-    //
-    // `@State` is deliberately NOT in this list: its value is Equatable and is meant to
-    // be compared. Excluding it would diverge from the EquatableBodyView design
-    // (which treats `@State` as supported), where a skipped `@State` can go stale.
+    // This syntactic allowlist covers Apple SwiftUI DynamicProperty wrappers that
+    // must NOT be read from generated nonisolated equality: they are non-Equatable,
+    // trap when read outside `body`, or — for `@State` — the mounted source of truth
+    // lives in AttributeGraph while the backing storage only echoes the initializer
+    // snapshot, so a comparison is dead weight at best and a false negative at worst.
+    // Excluding `@State` cannot go stale: its mutations invalidate below the
+    // `.equatable()` gate without consulting `==`.
     // Custom or future wrappers still need @SkipEquatable.
     let skippedWrapperNames: Set<String> = [
         "AppStorage",
@@ -384,6 +420,7 @@ private func hasDynamicPropertyWrapper(in attributes: AttributeListSyntax) -> Bo
         "ScaledMetric",
         "SceneStorage",
         "SectionedFetchRequest",
+        "State",
         "StateObject",
         "UIApplicationDelegateAdaptor",
         "WKApplicationDelegateAdaptor",
@@ -433,8 +470,6 @@ private func hasDirectConformance(named expectedName: String, in structDecl: Str
     }
 }
 
-/// Matches a name against an inherited type, expanding a protocol composition
-/// (`View & Equatable`) into its elements so each is checked individually.
 private func conformanceTypeMatches(_ type: some TypeSyntaxProtocol, _ expectedName: String) -> Bool {
     if let composition = type.as(CompositionTypeSyntax.self) {
         return composition.elements.contains { conformanceTypeMatches($0.type, expectedName) }
@@ -442,8 +477,6 @@ private func conformanceTypeMatches(_ type: some TypeSyntaxProtocol, _ expectedN
     return typeNameMatches(type, expectedName)
 }
 
-/// On an `EquatableBodyView` conformer, forbid non-Equatable dynamic
-/// properties (stale bug) and a direct `body` declaration (bypasses the gate).
 private func diagnoseEquatableBodyViewViolations(
     in structDecl: StructDeclSyntax,
     context: some MacroExpansionContext,
@@ -452,10 +485,8 @@ private func diagnoseEquatableBodyViewViolations(
         return
     }
 
-    // Recurse into `#if` blocks so a `body` / forbidden wrapper hidden under a
-    // conditional is still caught. (A `body` declared in a *separate extension*
-    // cannot be seen by an attached macro at all — SE-0389 — and is documented as
-    // an inherent limitation.)
+    // A `body` declared in a *separate extension* cannot be seen by an attached
+    // macro at all (SE-0389) — an inherent limitation, not a missed diagnostic.
     for variable in variableDeclsIncludingConditional(structDecl.memberBlock.members) {
         if hasForbiddenDynamicProperty(in: variable.attributes) {
             context.diagnose(Diagnostic(
@@ -478,8 +509,6 @@ private func diagnoseEquatableBodyViewViolations(
     }
 }
 
-/// Warn when a struct looks like a SwiftUI `View` but `: View` is only declared in a
-/// separate extension, which forces isolated `==` and breaks `.equatable()`.
 private func diagnoseViewLikeStructWithoutDirectConformance(
     in structDecl: StructDeclSyntax,
     expansionContext: EquatableExpansionContext,
@@ -502,10 +531,7 @@ private func diagnoseViewLikeStructWithoutDirectConformance(
 }
 
 private func hasViewBodyMember(in structDecl: StructDeclSyntax) -> Bool {
-    structDecl.memberBlock.members.contains { member in
-        guard let variable = member.decl.as(VariableDeclSyntax.self) else {
-            return false
-        }
+    variableDeclsIncludingConditional(structDecl.memberBlock.members).contains { variable in
         guard declaresBodyProperty(variable) else {
             return false
         }
@@ -514,6 +540,55 @@ private func hasViewBodyMember(in structDecl: StructDeclSyntax) -> Bool {
                 return false
             }
             return isViewBodyType(binding.typeAnnotation?.type)
+        }
+    }
+}
+
+/// Fail-closed guard for the deliberate `#if`-blindness of the equality
+/// comparison: a stored property the comparison would otherwise include must
+/// not silently disappear just because it sits inside a conditional block.
+private func diagnoseConditionalStoredProperties(
+    in structDecl: StructDeclSyntax,
+    expansionContext: EquatableExpansionContext,
+    context: some MacroExpansionContext,
+) {
+    let excludesDynamicProperties = expansionContext.shape == .nonisolatedMember
+        || expansionContext.requiresNonisolatedWitness
+    let isView = hasDirectConformance(named: "View", in: structDecl)
+
+    for variable in conditionalVariableDecls(structDecl.memberBlock.members) {
+        if isStaticClassOrLazy(variable) || hasAttribute(named: "SkipEquatable", in: variable.attributes) {
+            continue
+        }
+        if excludesDynamicProperties && hasDynamicPropertyWrapper(in: variable.attributes) {
+            continue
+        }
+
+        let wouldBeCompared = variable.bindings.contains { binding in
+            guard let identifierPattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                return false
+            }
+            guard isStored(binding) else {
+                return false
+            }
+            if identifierPattern.identifier.text == "body",
+                isView || isViewBodyType(binding.typeAnnotation?.type)
+            {
+                return false
+            }
+            if isTopLevelFunctionType(binding.typeAnnotation?.type)
+                || hasTopLevelClosureLiteralInitializer(binding)
+            {
+                return false
+            }
+            return true
+        }
+
+        if wouldBeCompared {
+            context.diagnose(Diagnostic(
+                node: Syntax(variable),
+                message: EquatableDiagnostic.conditionalStoredProperty,
+            ))
         }
     }
 }
@@ -536,9 +611,8 @@ private func renameBodyToEquatableBodyFixIt(in variable: VariableDeclSyntax) -> 
     )
 }
 
-/// All `VariableDeclSyntax` directly in `members` plus those nested inside `#if`
-/// blocks. Used by diagnostics (which must see conditional declarations); the
-/// equality comparison deliberately does NOT recurse into `#if`.
+/// The equality comparison deliberately does NOT recurse into `#if`
+/// (only diagnostics need to see conditional declarations).
 private func variableDeclsIncludingConditional(
     _ members: MemberBlockItemListSyntax
 ) -> [VariableDeclSyntax] {
@@ -546,11 +620,23 @@ private func variableDeclsIncludingConditional(
     for member in members {
         if let variable = member.decl.as(VariableDeclSyntax.self) {
             result.append(variable)
-        } else if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
-            for clause in ifConfig.clauses {
-                if let nested = clause.elements?.as(MemberBlockItemListSyntax.self) {
-                    result.append(contentsOf: variableDeclsIncludingConditional(nested))
-                }
+        }
+    }
+    result.append(contentsOf: conditionalVariableDecls(members))
+    return result
+}
+
+private func conditionalVariableDecls(
+    _ members: MemberBlockItemListSyntax
+) -> [VariableDeclSyntax] {
+    var result: [VariableDeclSyntax] = []
+    for member in members {
+        guard let ifConfig = member.decl.as(IfConfigDeclSyntax.self) else {
+            continue
+        }
+        for clause in ifConfig.clauses {
+            if let nested = clause.elements?.as(MemberBlockItemListSyntax.self) {
+                result.append(contentsOf: variableDeclsIncludingConditional(nested))
             }
         }
     }
@@ -558,7 +644,13 @@ private func variableDeclsIncludingConditional(
 }
 
 private func hasForbiddenDynamicProperty(in attributes: AttributeListSyntax) -> Bool {
-    let forbidden: Set<String> = ["StateObject", "ObservedObject", "Binding"]
+    // Forbidden = parent-swappable sources: the parent can hand the view a
+    // different object/binding without the (non-Equatable, excluded) wrapper
+    // ever appearing in `==`, so the gate would keep a stale subscription.
+    // Owned state (@State / @StateObject) is deliberately allowed: its source
+    // cannot be swapped after installation and its mutations invalidate below
+    // the `.equatable()` gate without consulting `==`.
+    let forbidden: Set<String> = ["Bindable", "ObservedObject", "Binding"]
     return attributes.contains { element in
         guard let attribute = element.as(AttributeSyntax.self) else {
             return false
@@ -605,6 +697,34 @@ private func isViewBodyType(_ type: TypeSyntax?) -> Bool {
         return typeNameMatches(someOrAny.constraint, "View")
     }
 
+    return false
+}
+
+/// A callback in the usual shapes — `() -> Void`, `@Sendable @MainActor (T) -> Void`,
+/// `(() -> Void)?`, `(() -> Void)!` — is auto-excluded from the comparison. A type
+/// that merely *contains* a function type (`[() -> Void]`, tuples, generic
+/// arguments) is not obviously a callback, so it is diagnosed instead.
+private func isTopLevelFunctionType(_ type: TypeSyntax?) -> Bool {
+    guard let type else {
+        return false
+    }
+    if type.is(FunctionTypeSyntax.self) {
+        return true
+    }
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return isTopLevelFunctionType(attributed.baseType)
+    }
+    if let optional = type.as(OptionalTypeSyntax.self) {
+        return isTopLevelFunctionType(optional.wrappedType)
+    }
+    if let unwrapped = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+        return isTopLevelFunctionType(unwrapped.wrappedType)
+    }
+    if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
+        let element = tuple.elements.first
+    {
+        return isTopLevelFunctionType(element.type)
+    }
     return false
 }
 
@@ -748,27 +868,9 @@ private func makeComparisonExpression(for properties: [EquatableProperty]) -> Ex
 }
 
 private func makeEqualityExpression(for property: EquatableProperty) -> ExprSyntax {
-    switch property.comparisonAccess {
-    case .direct:
-        let lhs = makeMemberAccess(baseName: "lhs", memberName: property.identifier)
-        let rhs = makeMemberAccess(baseName: "rhs", memberName: property.identifier)
-        return makeBinaryEquality(lhs: lhs, rhs: rhs)
-
-    case .stateWrappedValue:
-        // `@State` wrapped properties are MainActor-isolated on the struct accessor,
-        // but the backing `State` storage's `wrappedValue` is readable from
-        // `nonisolated ==` (SwiftUI's intended comparison path for `.equatable()`).
-        let backingName = "_\(property.identifier.text)"
-        let lhs = makeMemberAccess(
-            base: makeMemberAccess(baseName: "lhs", memberName: .identifier(backingName)),
-            memberName: .identifier("wrappedValue"),
-        )
-        let rhs = makeMemberAccess(
-            base: makeMemberAccess(baseName: "rhs", memberName: .identifier(backingName)),
-            memberName: .identifier("wrappedValue"),
-        )
-        return makeBinaryEquality(lhs: lhs, rhs: rhs)
-    }
+    let lhs = makeMemberAccess(baseName: "lhs", memberName: property.identifier)
+    let rhs = makeMemberAccess(baseName: "rhs", memberName: property.identifier)
+    return makeBinaryEquality(lhs: lhs, rhs: rhs)
 }
 
 private func makeBinaryEquality(lhs: ExprSyntax, rhs: ExprSyntax) -> ExprSyntax {

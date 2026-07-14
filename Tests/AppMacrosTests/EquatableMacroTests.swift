@@ -317,6 +317,77 @@ struct EquatableMacroTests {
         #endif
     }
 
+    @Test("stored property inside #if is diagnosed, not silently dropped")
+    func storedPropertyInsideConditionalBlockIsDiagnosed() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    let platformValue: Int
+                    #endif
+                }
+                """,
+                expandedSource: """
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    let platformValue: Int
+                    #endif
+                }
+
+                extension S: Equatable {
+                    static func == (lhs: S, rhs: S) -> Bool {
+                        return lhs.id == rhs.id
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@Equatable does not compare stored properties declared inside #if — the generated == would silently ignore platform-specific changes (stale view); mark it with @SkipEquatable to exclude it explicitly, or declare it unconditionally",
+                        line: 5,
+                        column: 5,
+                    ),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("stored property inside #if can be skipped explicitly")
+    func storedPropertyInsideConditionalBlockCanBeSkippedExplicitly() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    @SkipEquatable let platformValue: Int
+                    #endif
+                }
+                """,
+                expandedSource: """
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    let platformValue: Int
+                    #endif
+                }
+
+                extension S: Equatable {
+                    static func == (lhs: S, rhs: S) -> Bool {
+                        return lhs.id == rhs.id
+                    }
+                }
+                """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
     @Test("multi-binding vars compare every identifier")
     func multiBindingVarsCompareEveryIdentifier() throws {
         #if canImport(AppMacrosMacros)
@@ -371,6 +442,37 @@ struct EquatableMacroTests {
         #endif
     }
 
+    @Test("SkipEquatable on a multi-binding declaration is diagnosed")
+    func skipEquatableOnMultiBindingDeclarationIsDiagnosed() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct S {
+                    let id: Int
+                    @SkipEquatable let a = 1, b = 2
+                }
+                """,
+                expandedSource: """
+                struct S {
+                    let id: Int
+                    let a = 1, b = 2
+                }
+
+                extension S: Equatable {
+                    static func == (lhs: S, rhs: S) -> Bool {
+                        return lhs.id == rhs.id
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(message: "peer macro can only be applied to a single variable", line: 4, column: 5),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
     @Test("function-typed properties are excluded")
     func functionTypedPropertiesAreExcluded() throws {
         #if canImport(AppMacrosMacros)
@@ -382,7 +484,6 @@ struct EquatableMacroTests {
                     let tap: () -> Void
                     let select: @Sendable @MainActor (Int) -> Void
                     let optionalAction: (() -> Void)?
-                    let handlers: [() -> Void]
                     let inferred = {}
                 }
                 """,
@@ -392,7 +493,6 @@ struct EquatableMacroTests {
                     let tap: () -> Void
                     let select: @Sendable @MainActor (Int) -> Void
                     let optionalAction: (() -> Void)?
-                    let handlers: [() -> Void]
                     let inferred = {}
                 }
 
@@ -407,7 +507,7 @@ struct EquatableMacroTests {
         #endif
     }
 
-    @Test("environment/reference wrappers excluded, @State compared, in nonisolated mode")
+    @Test("@State and environment/reference wrappers are excluded in nonisolated mode")
     func dynamicPropertyWrappersAreExcludedInNonisolatedMode() throws {
         #if canImport(AppMacrosMacros)
             assertMacroExpansion(
@@ -442,10 +542,101 @@ struct EquatableMacroTests {
                     }
 
                     nonisolated static func == (lhs: Panel, rhs: Panel) -> Bool {
-                        return lhs._count.wrappedValue == rhs._count.wrappedValue && lhs.state == rhs.state
+                        return lhs.state == rhs.state
                     }
                 }
                 """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("type containing a function type is diagnosed, not silently dropped")
+    func typeContainingFunctionTypeIsDiagnosed() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Actions {
+                    let value: Int
+                    let handlers: [() -> Void]
+                }
+                """,
+                expandedSource: """
+                struct Actions {
+                    let value: Int
+                    let handlers: [() -> Void]
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@Equatable cannot compare a property whose type contains a function type, and silently excluding it would hide stale closure state; mark it with @SkipEquatable to exclude it explicitly",
+                        line: 4,
+                        column: 9,
+                    ),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("type containing a function type can be skipped explicitly")
+    func typeContainingFunctionTypeCanBeSkippedExplicitly() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Actions {
+                    let value: Int
+                    @SkipEquatable let handlers: [() -> Void]
+                }
+                """,
+                expandedSource: """
+                struct Actions {
+                    let value: Int
+                    let handlers: [() -> Void]
+                }
+
+                extension Actions: Equatable {
+                    static func == (lhs: Actions, rhs: Actions) -> Bool {
+                        return lhs.value == rhs.value
+                    }
+                }
+                """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("all inputs excluded warns about always-equal comparison")
+    func allInputsExcludedWarnsAboutAlwaysEqualComparison() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct TapOnly {
+                    let onTap: () -> Void
+                }
+                """,
+                expandedSource: """
+                struct TapOnly {
+                    let onTap: () -> Void
+                }
+
+                extension TapOnly: Equatable {
+                    static func == (lhs: TapOnly, rhs: TapOnly) -> Bool {
+                        return true
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@Equatable compares no stored properties here (all inputs were excluded); instances always compare equal, so an .equatable()-gated view never re-renders when these inputs change",
+                        line: 2,
+                        column: 1,
+                        severity: .warning,
+                    ),
+                ],
                 macros: testMacros,
             )
         #endif
@@ -481,6 +672,34 @@ struct EquatableMacroTests {
                 extension DerivedRow: Equatable {
                     static func == (lhs: DerivedRow, rhs: DerivedRow) -> Bool {
                         return lhs.value == rhs.value && lhs.derived == rhs.derived
+                    }
+                }
+                """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("typealiased closure is compared (documented limitation)")
+    func typealiasedClosureIsCompared() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Row {
+                    let state: Int
+                    let action: Action
+                }
+                """,
+                expandedSource: """
+                struct Row {
+                    let state: Int
+                    let action: Action
+                }
+
+                extension Row: Equatable {
+                    static func == (lhs: Row, rhs: Row) -> Bool {
+                        return lhs.state == rhs.state && lhs.action == rhs.action
                     }
                 }
                 """,
@@ -593,6 +812,52 @@ struct EquatableMacroTests {
                     var body: some View {
                         Text("\\(value)")
                     }
+                }
+
+                extension OrphanView: Equatable {
+                    static func == (lhs: OrphanView, rhs: OrphanView) -> Bool {
+                        return lhs.value == rhs.value
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "Struct declares `body: some View` without directly conforming to `View`; add `: View` to the struct declaration or use `@Equatable(.nonisolated)` so `.equatable()` can call `==` without actor hops",
+                        line: 2,
+                        column: 1,
+                        severity: .warning,
+                    ),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("view-like struct with body inside #if warns")
+    func viewLikeStructWithConditionalBodyWarns() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct OrphanView {
+                    let value: Int
+
+                    #if os(iOS)
+                    var body: some View {
+                        Text("\\(value)")
+                    }
+                    #endif
+                }
+                """,
+                expandedSource: """
+                struct OrphanView {
+                    let value: Int
+
+                    #if os(iOS)
+                    var body: some View {
+                        Text("\\(value)")
+                    }
+                    #endif
                 }
 
                 extension OrphanView: Equatable {
