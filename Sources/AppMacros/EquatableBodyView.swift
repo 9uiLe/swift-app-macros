@@ -32,8 +32,8 @@
     /// ChipView(title: "x", onTap: onTap)
     /// ```
     ///
-    /// > 本パッケージのテストが保証するのはコンパイル・マクロ展開・診断の正しさであり、
-    /// > 再描画抑制のランタイム効果はテスト対象外。
+    /// > 再描画抑制のランタイム効果は、マウント済みヒエラルキーで非 Equatable な統制用
+    /// > View と比較するテスト（`RenderSuppressionTests`）が保証する。
     public protocol EquatableBodyView: View, Equatable {
         associatedtype EquatableBody: View
         /// 重い本体をここに書く（`body` は既定実装が `.equatable()` 注入に専有している）。
@@ -46,16 +46,17 @@
         }
     }
 
-    /// `host` は `nonisolated(unsafe)`。不変条件として「準拠型の比較対象プロパティは値型 / Sendable のみ」
+    /// `nonisolated struct`（SE-0449）により `==` はコンパイラ検査下で isolation なしに
+    /// `host` を読める。不変条件として「準拠型の比較対象プロパティは値型 / Sendable のみ」
     /// を前提とする（`@MainActor` 隔離下で `nonisolated ==` から安全に読むため・SE-0434）。
-    private struct _EquatableHost<Content: EquatableBodyView>: View, Equatable {
-        nonisolated(unsafe) let host: Content
+    private nonisolated struct _EquatableHost<Content: EquatableBodyView>: View, Equatable {
+        let host: Content
 
-        nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        static func == (lhs: Self, rhs: Self) -> Bool {
             lhs.host == rhs.host
         }
 
-        var body: Content.EquatableBody {
+        @MainActor var body: Content.EquatableBody {
             host.equatableBody
         }
     }
