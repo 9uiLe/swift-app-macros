@@ -317,8 +317,8 @@ struct EquatableMacroTests {
         #endif
     }
 
-    @Test("properties declared inside #if are not compared")
-    func propertiesDeclaredInsideConditionalBlocksAreNotCompared() throws {
+    @Test("stored property inside #if is diagnosed, not silently dropped")
+    func storedPropertyInsideConditionalBlockIsDiagnosed() throws {
         #if canImport(AppMacrosMacros)
             assertMacroExpansion(
                 """
@@ -327,6 +327,45 @@ struct EquatableMacroTests {
                     let id: Int
                     #if os(iOS)
                     let platformValue: Int
+                    #endif
+                }
+                """,
+                expandedSource: """
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    let platformValue: Int
+                    #endif
+                }
+
+                extension S: Equatable {
+                    static func == (lhs: S, rhs: S) -> Bool {
+                        return lhs.id == rhs.id
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@Equatable does not compare stored properties declared inside #if — the generated == would silently ignore platform-specific changes (stale view); mark it with @SkipEquatable to exclude it explicitly, or declare it unconditionally",
+                        line: 5,
+                        column: 5,
+                    ),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("stored property inside #if can be skipped explicitly")
+    func storedPropertyInsideConditionalBlockCanBeSkippedExplicitly() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct S {
+                    let id: Int
+                    #if os(iOS)
+                    @SkipEquatable let platformValue: Int
                     #endif
                 }
                 """,
@@ -684,6 +723,52 @@ struct EquatableMacroTests {
                     var body: some View {
                         Text("\\(value)")
                     }
+                }
+
+                extension OrphanView: Equatable {
+                    static func == (lhs: OrphanView, rhs: OrphanView) -> Bool {
+                        return lhs.value == rhs.value
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "Struct declares `body: some View` without directly conforming to `View`; add `: View` to the struct declaration or use `@Equatable(.nonisolated)` so `.equatable()` can call `==` without actor hops",
+                        line: 2,
+                        column: 1,
+                        severity: .warning,
+                    ),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("view-like struct with body inside #if warns")
+    func viewLikeStructWithConditionalBodyWarns() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct OrphanView {
+                    let value: Int
+
+                    #if os(iOS)
+                    var body: some View {
+                        Text("\\(value)")
+                    }
+                    #endif
+                }
+                """,
+                expandedSource: """
+                struct OrphanView {
+                    let value: Int
+
+                    #if os(iOS)
+                    var body: some View {
+                        Text("\\(value)")
+                    }
+                    #endif
                 }
 
                 extension OrphanView: Equatable {

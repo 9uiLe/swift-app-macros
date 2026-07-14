@@ -61,6 +61,11 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
         diagnoseEquatableBodyViewViolations(in: structDecl, context: context)
 
         let expansionContext = expansionContext(for: node, attachedTo: structDecl)
+        diagnoseConditionalStoredProperties(
+            in: structDecl,
+            expansionContext: expansionContext,
+            context: context,
+        )
         diagnoseViewLikeStructWithoutDirectConformance(
             in: structDecl,
             expansionContext: expansionContext,
@@ -164,6 +169,7 @@ private struct PropertyAnalysis {
 private enum EquatableDiagnostic: DiagnosticMessage {
     case onlyStruct
     case unsupportedPattern
+    case conditionalStoredProperty
     case equatableBodyViewForbiddenDynamicProperty
     case equatableBodyViewDirectBody
     case viewLikeStructNeedsNonisolated
@@ -174,6 +180,8 @@ private enum EquatableDiagnostic: DiagnosticMessage {
             "@Equatable can only be attached to a struct"
         case .unsupportedPattern:
             "@Equatable only supports simple stored property names"
+        case .conditionalStoredProperty:
+            "@Equatable does not compare stored properties declared inside #if — the generated == would silently ignore platform-specific changes (stale view); mark it with @SkipEquatable to exclude it explicitly, or declare it unconditionally"
         case .equatableBodyViewForbiddenDynamicProperty:
             "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props"
         case .equatableBodyViewDirectBody:
@@ -189,6 +197,8 @@ private enum EquatableDiagnostic: DiagnosticMessage {
             MessageID(domain: "AppMacros.Equatable", id: "onlyStruct")
         case .unsupportedPattern:
             MessageID(domain: "AppMacros.Equatable", id: "unsupportedPattern")
+        case .conditionalStoredProperty:
+            MessageID(domain: "AppMacros.Equatable", id: "conditionalStoredProperty")
         case .equatableBodyViewForbiddenDynamicProperty:
             MessageID(domain: "AppMacros.Equatable", id: "equatableBodyViewForbiddenDynamicProperty")
         case .equatableBodyViewDirectBody:
@@ -477,10 +487,7 @@ private func diagnoseViewLikeStructWithoutDirectConformance(
 }
 
 private func hasViewBodyMember(in structDecl: StructDeclSyntax) -> Bool {
-    structDecl.memberBlock.members.contains { member in
-        guard let variable = member.decl.as(VariableDeclSyntax.self) else {
-            return false
-        }
+    variableDeclsIncludingConditional(structDecl.memberBlock.members).contains { variable in
         guard declaresBodyProperty(variable) else {
             return false
         }
@@ -489,6 +496,55 @@ private func hasViewBodyMember(in structDecl: StructDeclSyntax) -> Bool {
                 return false
             }
             return isViewBodyType(binding.typeAnnotation?.type)
+        }
+    }
+}
+
+/// Fail-closed guard for the deliberate `#if`-blindness of the equality
+/// comparison: a stored property the comparison would otherwise include must
+/// not silently disappear just because it sits inside a conditional block.
+private func diagnoseConditionalStoredProperties(
+    in structDecl: StructDeclSyntax,
+    expansionContext: EquatableExpansionContext,
+    context: some MacroExpansionContext,
+) {
+    let excludesDynamicProperties = expansionContext.shape == .nonisolatedMember
+        || expansionContext.requiresNonisolatedWitness
+    let isView = hasDirectConformance(named: "View", in: structDecl)
+
+    for variable in conditionalVariableDecls(structDecl.memberBlock.members) {
+        if isStaticClassOrLazy(variable) || hasAttribute(named: "SkipEquatable", in: variable.attributes) {
+            continue
+        }
+        if excludesDynamicProperties && hasDynamicPropertyWrapper(in: variable.attributes) {
+            continue
+        }
+
+        let wouldBeCompared = variable.bindings.contains { binding in
+            guard let identifierPattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                return false
+            }
+            guard isStored(binding) else {
+                return false
+            }
+            if identifierPattern.identifier.text == "body",
+                isView || isViewBodyType(binding.typeAnnotation?.type)
+            {
+                return false
+            }
+            if containsFunctionType(binding.typeAnnotation?.type)
+                || hasTopLevelClosureLiteralInitializer(binding)
+            {
+                return false
+            }
+            return true
+        }
+
+        if wouldBeCompared {
+            context.diagnose(Diagnostic(
+                node: Syntax(variable),
+                message: EquatableDiagnostic.conditionalStoredProperty,
+            ))
         }
     }
 }
@@ -520,11 +576,23 @@ private func variableDeclsIncludingConditional(
     for member in members {
         if let variable = member.decl.as(VariableDeclSyntax.self) {
             result.append(variable)
-        } else if let ifConfig = member.decl.as(IfConfigDeclSyntax.self) {
-            for clause in ifConfig.clauses {
-                if let nested = clause.elements?.as(MemberBlockItemListSyntax.self) {
-                    result.append(contentsOf: variableDeclsIncludingConditional(nested))
-                }
+        }
+    }
+    result.append(contentsOf: conditionalVariableDecls(members))
+    return result
+}
+
+private func conditionalVariableDecls(
+    _ members: MemberBlockItemListSyntax
+) -> [VariableDeclSyntax] {
+    var result: [VariableDeclSyntax] = []
+    for member in members {
+        guard let ifConfig = member.decl.as(IfConfigDeclSyntax.self) else {
+            continue
+        }
+        for clause in ifConfig.clauses {
+            if let nested = clause.elements?.as(MemberBlockItemListSyntax.self) {
+                result.append(contentsOf: variableDeclsIncludingConditional(nested))
             }
         }
     }

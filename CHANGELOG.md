@@ -18,6 +18,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Dynamic-property exclusion now follows witness isolation instead of expansion
   shape: `@Equatable(.extension)` forced on a `View` no longer includes
   environment/reference-derived wrappers in the comparison.
+- **Breaking**: stored properties declared inside `#if` are now a compile-time
+  error instead of being silently excluded from the generated `==` (the silent
+  exclusion could keep a stale platform-specific view on screen). Mark them
+  `@SkipEquatable` to exclude them explicitly, or declare them unconditionally.
+  The view-like-struct warning now also detects a `body` declared inside `#if`.
 
 ### Added
 
