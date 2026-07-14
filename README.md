@@ -44,7 +44,7 @@ This is an early package targeting the latest Apple SDKs. Older OS / Swift versi
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.1.0"),
+    .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.2.0"),
 ],
 targets: [
     .target(name: "YourFeature", dependencies: [
@@ -68,7 +68,7 @@ The three APIs and the reasoning behind them are documented in [`docs/`](docs/RE
 ## Testing
 
 ```bash
-swift test   # 44 tests / 4 suites
+swift test   # 50 tests / 4 suites
 ```
 
 CI runs on pull requests (`.github/workflows/ci.yml`).
