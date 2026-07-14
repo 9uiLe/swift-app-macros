@@ -23,6 +23,9 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
             in: structDecl,
             excludesDynamicProperties: true,
         )
+        analysis.warnings.forEach { warning in
+            context.diagnose(warning)
+        }
         analysis.diagnostics.forEach { diagnostic in
             context.diagnose(diagnostic)
         }
@@ -87,6 +90,9 @@ public struct EquatableMacro: MemberMacro, ExtensionMacro {
                 in: structDecl,
                 excludesDynamicProperties: expansionContext.requiresNonisolatedWitness,
             )
+            analysis.warnings.forEach { warning in
+                context.diagnose(warning)
+            }
             analysis.diagnostics.forEach { diagnostic in
                 context.diagnose(diagnostic)
             }
@@ -164,12 +170,15 @@ private struct EquatableProperty {
 private struct PropertyAnalysis {
     let properties: [EquatableProperty]
     let diagnostics: [Diagnostic]
+    let warnings: [Diagnostic]
 }
 
 private enum EquatableDiagnostic: DiagnosticMessage {
     case onlyStruct
     case unsupportedPattern
     case conditionalStoredProperty
+    case compositeFunctionType
+    case noComparedProperties
     case equatableBodyViewForbiddenDynamicProperty
     case equatableBodyViewDirectBody
     case viewLikeStructNeedsNonisolated
@@ -182,6 +191,10 @@ private enum EquatableDiagnostic: DiagnosticMessage {
             "@Equatable only supports simple stored property names"
         case .conditionalStoredProperty:
             "@Equatable does not compare stored properties declared inside #if — the generated == would silently ignore platform-specific changes (stale view); mark it with @SkipEquatable to exclude it explicitly, or declare it unconditionally"
+        case .compositeFunctionType:
+            "@Equatable cannot compare a property whose type contains a function type, and silently excluding it would hide stale closure state; mark it with @SkipEquatable to exclude it explicitly"
+        case .noComparedProperties:
+            "@Equatable compares no stored properties here (all inputs were excluded); instances always compare equal, so an .equatable()-gated view never re-renders when these inputs change"
         case .equatableBodyViewForbiddenDynamicProperty:
             "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props"
         case .equatableBodyViewDirectBody:
@@ -199,6 +212,10 @@ private enum EquatableDiagnostic: DiagnosticMessage {
             MessageID(domain: "AppMacros.Equatable", id: "unsupportedPattern")
         case .conditionalStoredProperty:
             MessageID(domain: "AppMacros.Equatable", id: "conditionalStoredProperty")
+        case .compositeFunctionType:
+            MessageID(domain: "AppMacros.Equatable", id: "compositeFunctionType")
+        case .noComparedProperties:
+            MessageID(domain: "AppMacros.Equatable", id: "noComparedProperties")
         case .equatableBodyViewForbiddenDynamicProperty:
             MessageID(domain: "AppMacros.Equatable", id: "equatableBodyViewForbiddenDynamicProperty")
         case .equatableBodyViewDirectBody:
@@ -210,7 +227,7 @@ private enum EquatableDiagnostic: DiagnosticMessage {
 
     var severity: DiagnosticSeverity {
         switch self {
-        case .viewLikeStructNeedsNonisolated:
+        case .viewLikeStructNeedsNonisolated, .noComparedProperties:
             .warning
         default:
             .error
@@ -262,13 +279,19 @@ private func analyzeProperties(
     let isView = hasDirectConformance(named: "View", in: structDecl)
     var properties: [EquatableProperty] = []
     var diagnostics: [Diagnostic] = []
+    var excludedComparableInput = false
 
     for member in structDecl.memberBlock.members {
         guard let variable = member.decl.as(VariableDeclSyntax.self) else {
             continue
         }
 
-        if isStaticClassOrLazy(variable) || hasAttribute(named: "SkipEquatable", in: variable.attributes) {
+        if isStaticClassOrLazy(variable) {
+            continue
+        }
+
+        if hasAttribute(named: "SkipEquatable", in: variable.attributes) {
+            excludedComparableInput = true
             continue
         }
 
@@ -295,9 +318,18 @@ private func analyzeProperties(
                 continue
             }
 
-            if containsFunctionType(binding.typeAnnotation?.type)
+            if isTopLevelFunctionType(binding.typeAnnotation?.type)
                 || hasTopLevelClosureLiteralInitializer(binding)
             {
+                excludedComparableInput = true
+                continue
+            }
+
+            if containsFunctionType(binding.typeAnnotation?.type) {
+                diagnostics.append(Diagnostic(
+                    node: Syntax(binding),
+                    message: EquatableDiagnostic.compositeFunctionType,
+                ))
                 continue
             }
 
@@ -308,7 +340,19 @@ private func analyzeProperties(
         }
     }
 
-    return PropertyAnalysis(properties: properties, diagnostics: diagnostics)
+    // Only deliberately dropped parent-value inputs (@SkipEquatable, closures)
+    // count toward the always-equal warning: excluded dynamic-property wrappers
+    // are not parent props (they self-invalidate through the graph), so a view
+    // holding only those legitimately compares equal.
+    var warnings: [Diagnostic] = []
+    if properties.isEmpty, excludedComparableInput, diagnostics.isEmpty {
+        warnings.append(Diagnostic(
+            node: Syntax(structDecl.structKeyword),
+            message: EquatableDiagnostic.noComparedProperties,
+        ))
+    }
+
+    return PropertyAnalysis(properties: properties, diagnostics: diagnostics, warnings: warnings)
 }
 
 private func isStaticClassOrLazy(_ variable: VariableDeclSyntax) -> Bool {
@@ -532,7 +576,7 @@ private func diagnoseConditionalStoredProperties(
             {
                 return false
             }
-            if containsFunctionType(binding.typeAnnotation?.type)
+            if isTopLevelFunctionType(binding.typeAnnotation?.type)
                 || hasTopLevelClosureLiteralInitializer(binding)
             {
                 return false
@@ -647,6 +691,34 @@ private func isViewBodyType(_ type: TypeSyntax?) -> Bool {
         return typeNameMatches(someOrAny.constraint, "View")
     }
 
+    return false
+}
+
+/// A callback in the usual shapes — `() -> Void`, `@Sendable @MainActor (T) -> Void`,
+/// `(() -> Void)?`, `(() -> Void)!` — is auto-excluded from the comparison. A type
+/// that merely *contains* a function type (`[() -> Void]`, tuples, generic
+/// arguments) is not obviously a callback, so it is diagnosed instead.
+private func isTopLevelFunctionType(_ type: TypeSyntax?) -> Bool {
+    guard let type else {
+        return false
+    }
+    if type.is(FunctionTypeSyntax.self) {
+        return true
+    }
+    if let attributed = type.as(AttributedTypeSyntax.self) {
+        return isTopLevelFunctionType(attributed.baseType)
+    }
+    if let optional = type.as(OptionalTypeSyntax.self) {
+        return isTopLevelFunctionType(optional.wrappedType)
+    }
+    if let unwrapped = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+        return isTopLevelFunctionType(unwrapped.wrappedType)
+    }
+    if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
+        let element = tuple.elements.first
+    {
+        return isTopLevelFunctionType(element.type)
+    }
     return false
 }
 

@@ -19,8 +19,8 @@ Global-actor 属性の自動検出は `@MainActor` と、属性名が `*Actor`�
 
 - computed property（`var x: Int { ... }`）、`body`
 - `static` / `class` / `lazy` メンバ
-- 関数・クロージャ型プロパティ（`() -> Void`, `@MainActor (T) -> Void`,
-  `(() -> Void)?`, `[() -> Void]`、トップレベルがクロージャリテラルの初期化子）
+- トップレベルが関数・クロージャ型のプロパティ（`() -> Void`, `@MainActor (T) -> Void`,
+  `(() -> Void)?`、トップレベルがクロージャリテラルの初期化子）
 - nonisolated `==` を生成するとき（View / global-actor 型、および `.extension` を View に
   明示指定した場合）、SwiftUI dynamic property wrapper
   （`@State`, `@Binding`, `@Environment`, `@ScaledMetric`, `@FocusedValue`,
@@ -34,9 +34,17 @@ Global-actor 属性の自動検出は `@MainActor` と、属性名が `*Actor`�
 
 ## fail-closed 診断
 
-`#if` ブロック内の格納プロパティは生成 `==` の比較対象にできない。サイレントに
-除外するとプラットフォーム固有の変更を無視する stale 描画になるため、**エラーとして
-診断される**。`@SkipEquatable` で明示的に除外するか、無条件に宣言すること。
+サイレントな取りこぼしは stale 描画に直結するため、比較対象にできないものは
+黙って除外せず診断する:
+
+- **`#if` ブロック内の格納プロパティ**（エラー）: 生成 `==` は `#if` へ再帰しない。
+  `@SkipEquatable` で明示的に除外するか、無条件に宣言すること
+- **関数型を内包する型**（エラー）: `[() -> Void]`、タプル・ジェネリック引数内の
+  クロージャなど。トップレベルの関数型と違い「明らかなコールバック」ではないため、
+  `@SkipEquatable` の明示を要求する
+- **比較対象が 1 つも残らない**（警告）: 入力（クロージャ・`@SkipEquatable`）を
+  すべて除外した結果 `==` が常に true になる場合。ゲート付き View は入力が変わって
+  も再描画されない
 
 ## 例
 

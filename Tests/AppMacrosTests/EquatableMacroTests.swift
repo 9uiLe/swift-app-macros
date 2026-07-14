@@ -484,7 +484,6 @@ struct EquatableMacroTests {
                     let tap: () -> Void
                     let select: @Sendable @MainActor (Int) -> Void
                     let optionalAction: (() -> Void)?
-                    let handlers: [() -> Void]
                     let inferred = {}
                 }
                 """,
@@ -494,7 +493,6 @@ struct EquatableMacroTests {
                     let tap: () -> Void
                     let select: @Sendable @MainActor (Int) -> Void
                     let optionalAction: (() -> Void)?
-                    let handlers: [() -> Void]
                     let inferred = {}
                 }
 
@@ -548,6 +546,97 @@ struct EquatableMacroTests {
                     }
                 }
                 """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("type containing a function type is diagnosed, not silently dropped")
+    func typeContainingFunctionTypeIsDiagnosed() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Actions {
+                    let value: Int
+                    let handlers: [() -> Void]
+                }
+                """,
+                expandedSource: """
+                struct Actions {
+                    let value: Int
+                    let handlers: [() -> Void]
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@Equatable cannot compare a property whose type contains a function type, and silently excluding it would hide stale closure state; mark it with @SkipEquatable to exclude it explicitly",
+                        line: 4,
+                        column: 9,
+                    ),
+                ],
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("type containing a function type can be skipped explicitly")
+    func typeContainingFunctionTypeCanBeSkippedExplicitly() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Actions {
+                    let value: Int
+                    @SkipEquatable let handlers: [() -> Void]
+                }
+                """,
+                expandedSource: """
+                struct Actions {
+                    let value: Int
+                    let handlers: [() -> Void]
+                }
+
+                extension Actions: Equatable {
+                    static func == (lhs: Actions, rhs: Actions) -> Bool {
+                        return lhs.value == rhs.value
+                    }
+                }
+                """,
+                macros: testMacros,
+            )
+        #endif
+    }
+
+    @Test("all inputs excluded warns about always-equal comparison")
+    func allInputsExcludedWarnsAboutAlwaysEqualComparison() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct TapOnly {
+                    let onTap: () -> Void
+                }
+                """,
+                expandedSource: """
+                struct TapOnly {
+                    let onTap: () -> Void
+                }
+
+                extension TapOnly: Equatable {
+                    static func == (lhs: TapOnly, rhs: TapOnly) -> Bool {
+                        return true
+                    }
+                }
+                """,
+                diagnostics: [
+                    DiagnosticSpec(
+                        message: "@Equatable compares no stored properties here (all inputs were excluded); instances always compare equal, so an .equatable()-gated view never re-renders when these inputs change",
+                        line: 2,
+                        column: 1,
+                        severity: .warning,
+                    ),
+                ],
                 macros: testMacros,
             )
         #endif

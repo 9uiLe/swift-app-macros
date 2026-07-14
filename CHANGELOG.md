@@ -23,6 +23,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exclusion could keep a stale platform-specific view on screen). Mark them
   `@SkipEquatable` to exclude them explicitly, or declare them unconditionally.
   The view-like-struct warning now also detects a `body` declared inside `#if`.
+- **Breaking**: a property whose type merely *contains* a function type
+  (`[() -> Void]`, closures inside tuples or generic arguments) is now a
+  compile-time error instead of being silently excluded — unlike a top-level
+  callback, it is not obviously closure state, and dropping it silently could
+  keep stale closures alive. Mark it `@SkipEquatable` to exclude it explicitly.
+- New warning when every input was excluded from the comparison (closures,
+  `@SkipEquatable`): the generated `==` is constant `true`, so a gated view
+  would never re-render when those inputs change.
 
 ### Added
 
