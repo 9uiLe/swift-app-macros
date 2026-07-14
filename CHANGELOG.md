@@ -31,6 +31,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New warning when every input was excluded from the comparison (closures,
   `@SkipEquatable`): the generated `==` is constant `true`, so a gated view
   would never re-render when those inputs change.
+- `EquatableBodyView` wrapper policy now follows ownership instead of a fixed
+  list: `@StateObject` is allowed (owned state — mutations invalidate below the
+  gate, the source cannot be swapped by the parent), while `@Bindable` joins
+  `@ObservedObject` / `@Binding` as a diagnosed parent-swappable source.
 
 ### Added
 

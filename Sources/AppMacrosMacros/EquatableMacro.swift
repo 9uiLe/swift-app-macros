@@ -196,7 +196,7 @@ private enum EquatableDiagnostic: DiagnosticMessage {
         case .noComparedProperties:
             "@Equatable compares no stored properties here (all inputs were excluded); instances always compare equal, so an .equatable()-gated view never re-renders when these inputs change"
         case .equatableBodyViewForbiddenDynamicProperty:
-            "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props"
+            "@EquatableBodyView cannot compare @ObservedObject / @Bindable / @Binding (parent-swappable source, not Equatable → stale); hoist state to a parent and pass value props"
         case .equatableBodyViewDirectBody:
             "@EquatableBodyView must not declare `body` directly (it bypasses the baked-in .equatable() gate); put the content in `equatableBody`"
         case .viewLikeStructNeedsNonisolated:
@@ -644,7 +644,13 @@ private func conditionalVariableDecls(
 }
 
 private func hasForbiddenDynamicProperty(in attributes: AttributeListSyntax) -> Bool {
-    let forbidden: Set<String> = ["StateObject", "ObservedObject", "Binding"]
+    // Forbidden = parent-swappable sources: the parent can hand the view a
+    // different object/binding without the (non-Equatable, excluded) wrapper
+    // ever appearing in `==`, so the gate would keep a stale subscription.
+    // Owned state (@State / @StateObject) is deliberately allowed: its source
+    // cannot be swapped after installation and its mutations invalidate below
+    // the `.equatable()` gate without consulting `==`.
+    let forbidden: Set<String> = ["Bindable", "ObservedObject", "Binding"]
     return attributes.contains { element in
         guard let attribute = element.as(AttributeSyntax.self) else {
             return false

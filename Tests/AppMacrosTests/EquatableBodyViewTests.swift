@@ -49,14 +49,15 @@ struct EquatableBodyViewTests {
         #endif
     }
 
-    @Test("forbids @StateObject / @ObservedObject / @Binding")
+    @Test("forbids parent-swappable sources: @ObservedObject / @Bindable / @Binding")
     func forbidsDynamicProperty() throws {
         #if canImport(AppMacrosMacros)
             assertMacroExpansion(
                 """
                 @Equatable
                 struct Panel: EquatableBodyView {
-                    @StateObject var model: Model
+                    @ObservedObject var model: Model
+                    @Bindable var draft: Draft
                     let title: String
                     var equatableBody: some View {
                         Text(title)
@@ -65,7 +66,8 @@ struct EquatableBodyViewTests {
                 """,
                 expandedSource: """
                 struct Panel: EquatableBodyView {
-                    @StateObject var model: Model
+                    @ObservedObject var model: Model
+                    @Bindable var draft: Draft
                     let title: String
                     var equatableBody: some View {
                         Text(title)
@@ -81,11 +83,51 @@ struct EquatableBodyViewTests {
                 """,
                 diagnostics: [
                     DiagnosticSpec(
-                        message: "@EquatableBodyView cannot compare @StateObject / @ObservedObject / @Binding (not Equatable → stale); hoist state to a parent and pass value props",
+                        message: "@EquatableBodyView cannot compare @ObservedObject / @Bindable / @Binding (parent-swappable source, not Equatable → stale); hoist state to a parent and pass value props",
                         line: 3,
                         column: 5,
                     ),
+                    DiagnosticSpec(
+                        message: "@EquatableBodyView cannot compare @ObservedObject / @Bindable / @Binding (parent-swappable source, not Equatable → stale); hoist state to a parent and pass value props",
+                        line: 4,
+                        column: 5,
+                    ),
                 ],
+                macros: bodyViewMacros,
+            )
+        #endif
+    }
+
+    @Test("allows @StateObject as owned state, excluded from equality")
+    func allowsStateObjectAsOwnedState() throws {
+        #if canImport(AppMacrosMacros)
+            assertMacroExpansion(
+                """
+                @Equatable
+                struct Panel: EquatableBodyView {
+                    @StateObject private var model = Model()
+                    let title: String
+                    var equatableBody: some View {
+                        Text(title)
+                    }
+                }
+                """,
+                expandedSource: """
+                struct Panel: EquatableBodyView {
+                    @StateObject private var model = Model()
+                    let title: String
+                    var equatableBody: some View {
+                        Text(title)
+                    }
+
+                    nonisolated static func == (lhs: Panel, rhs: Panel) -> Bool {
+                        return lhs.title == rhs.title
+                    }
+                }
+
+                extension Panel: Equatable {
+                }
+                """,
                 macros: bodyViewMacros,
             )
         #endif

@@ -10,10 +10,10 @@
     /// `.equatable()` 相当の再描画抑制を適用するため、使用側は通常の `Child(...)` 記法の
     /// まま再描画抑制が効く。
     ///
-    /// **適用範囲は stateless + `@State` 限定**。`@State` は保持できるが比較対象外
-    /// （変更は `.equatable()` ゲートの下流を直接 invalidate するため stale にならない）。
-    /// `@StateObject` / `@ObservedObject` / `@Binding` は非 Equatable ゆえ比較に反映されず
-    /// stale バグになるため、`@Equatable` が診断エラーにする。
+    /// **適用範囲は stateless + 自己所有状態（`@State` / `@StateObject`）限定**。自己所有状態は
+    /// 保持できるが比較対象外（変更は `.equatable()` ゲートの下流を直接 invalidate するため
+    /// stale にならない）。`@ObservedObject` / `@Bindable` / `@Binding` は親が参照先を
+    /// 差し替えても比較に反映されず stale バグになるため、`@Equatable` が診断エラーにする。
     /// また本体を `body` に直書きすると既定実装の `.equatable()` ゲートをバイパスするため、これも
     /// `@Equatable` が診断エラーにする。
     ///
