@@ -14,5 +14,6 @@ AppMacros は、格納プロパティから `Equatable` 準拠を生成し、Swi
 | [`@SkipEquatable`](skip-equatable.md) | プロパティの除外と利用者が満たす条件 |
 | [`EquatableBodyView`](equatable-body-view.md) | 比較境界を持つ View の定義と状態の扱い |
 | [Actor 隔離の設計](actor-isolation.md) | 型・比較・準拠の隔離、Swift Evolution、Apple の API、WWDC |
+| [リリース運用](releasing.md) | 所有者の認証、バージョン準備、公開、CI、保護設定 |
 
 開発時のコマンドと作業規約は [CONTRIBUTING.md](../CONTRIBUTING.md) を参照。

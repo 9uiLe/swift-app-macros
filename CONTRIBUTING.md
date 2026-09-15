@@ -41,6 +41,15 @@ xcodebuild build -quiet \
 mounted macOS SwiftUI views. The iOS command verifies compilation; it does not
 run the macOS rendering tests on iOS.
 
+For release tooling changes, use Python 3.10 or later:
+
+```bash
+python3 -m unittest discover -s scripts/tests -v
+```
+
+These tests use temporary Git repositories and a simulated GitHub service;
+they need neither GitHub credentials nor network access.
+
 ## Architecture
 
 Read the [design overview](docs/design.md) for the public contracts and the
@@ -61,6 +70,17 @@ code or conformance generation.
 4. Make sure `swift build` and `swift test` pass locally. CI
    (`.github/workflows/ci.yml`) must be green before a PR can merge.
 5. Update `README.md` / `docs/` if you change public behavior.
+
+The owner merges PRs after `Swift package checks` and `Release tooling checks`
+pass and review discussions are resolved. Approving reviews are optional for
+this solo-maintained repository.
+
+## Releases
+
+Only `9uiLe` changes the upstream repository and publishes releases. Public
+issues and fork PRs are welcome; they do not grant upstream write access.
+Keep release entries in `CHANGELOG.md` under `Unreleased`. The owner chooses
+the version and follows the [release procedure](docs/releasing.md).
 
 ## Coding conventions
 
