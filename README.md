@@ -60,11 +60,9 @@ only to an excluded property does not make the views unequal. See the
 | Platforms | iOS 26+, macOS 26+ |
 | swift-syntax | 603.0.2, pinned exactly |
 
-## Use this checkout
+## Installation
 
-This documentation describes the source in this checkout. Add it as a local
-Swift package dependency, adjusting the path to its location, and link the
-`AppMacros` product from your target.
+Add the package dependency and link the `AppMacros` product from your target.
 
 ```swift
 // swift-tools-version: 6.3
@@ -74,7 +72,7 @@ let package = Package(
     name: "YourApp",
     platforms: [.iOS(.v26), .macOS(.v26)],
     dependencies: [
-        .package(path: "../swift-app-macros"),
+        .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.3.0"),
     ],
     targets: [
         .target(
@@ -87,8 +85,9 @@ let package = Package(
 )
 ```
 
-Use a Swift tools 6.3 manifest. In Xcode, add the checkout as a local package
-and select the `AppMacros` library for your app target.
+Use a Swift tools 6.3 manifest. In Xcode, add
+`https://github.com/9uiLe/swift-app-macros` as a package dependency and select
+the `AppMacros` library for your app target.
 
 ## Documentation
 
@@ -102,6 +101,7 @@ The detailed guides are in Japanese.
 | [`@SkipEquatable`](docs/skip-equatable.md) | Property exclusion and its correctness conditions |
 | [`EquatableBodyView`](docs/equatable-body-view.md) | View definition and state ownership |
 | [Actor isolation](docs/actor-isolation.md) | Swift Evolution rules, Apple API contracts, and WWDC references |
+| [Release design and operations](docs/releasing.md) | Publication model, commands, recovery, and repository protection |
 
 ## Development
 
@@ -111,8 +111,20 @@ swift test
 ```
 
 The suite covers macro expansion, compiled equality, and mounted macOS views.
-CI also builds for iOS Simulator. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-commands and coding conventions, and [CHANGELOG.md](CHANGELOG.md) for releases.
+CI validates the Swift package, the iOS Simulator build, and release tooling on
+PRs and pushes to `master`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development environment, checks, and contribution process.
+
+## Releases and maintenance
+
+`9uiLe` maintains this public repository and publishes source releases. Changes
+enter `master` through PRs. Local release commands use the owner's GitHub CLI
+authentication to prepare version PRs and publish commits that pass `master` CI.
+GitHub Actions runs with read-only credentials.
+
+Each package version has an annotated Git tag and a GitHub Release containing
+its [CHANGELOG](CHANGELOG.md) entries. The [release guide](docs/releasing.md)
+defines the workflow and publication requirements.
 
 ## Community and license
 

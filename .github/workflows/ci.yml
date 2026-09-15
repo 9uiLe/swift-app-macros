@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 # Least-privilege default: the build/test jobs only need to read the checkout.
@@ -13,6 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-tooling:
+    name: Release tooling checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Test release commands
+        run: python3 -m unittest discover -s scripts/tests -v
+
   swift:
     name: Swift package checks
     # swift-tools-version 6.3 requires Swift 6.3 (Xcode 26.4+); macos-26's
@@ -20,7 +34,9 @@ jobs:
     runs-on: macos-26
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Show Swift version
         run: swift --version

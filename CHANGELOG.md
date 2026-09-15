@@ -6,12 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-16
+
 ### Changed
 
 - **Breaking**: Ordinary View and detected global-actor types use equality and
   Equatable conformance isolated to their actor. Directly declared conformances
   must match that isolation, such as `@MainActor Equatable` or
-  `@MainActor EquatableBodyView`. See the [usage guide](docs/adoption.md).
+  `@MainActor EquatableBodyView`. See the
+  [usage guide](https://github.com/9uiLe/swift-app-macros/blob/0.3.0/docs/adoption.md).
 - EquatableBodyView compares content on MainActor.
 - SwiftUI dynamic-property exclusion is independent of isolation and expansion
   placement, including structs without a syntactically visible View conformance.
@@ -24,6 +27,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and mismatched conformance isolation, with isolation fix-its.
 - Compiled tests for non-Sendable inputs, isolated generic conformances, custom actors,
   and detached comparisons; mounted macOS rendering tests for MainActor equality.
+- Owner-authenticated release commands for preparing version PRs, checking merged
+  commits against CI, and publishing immutable releases with resumable drafts.
+- Release tooling tests and CI validation on pushes to master.
 
 ### Fixed
 
@@ -96,6 +102,7 @@ Initial public release.
 
 - Swift tools 6.3 (Xcode 26.4+), iOS 26+, macOS 26+, swift-syntax `603.0.2`.
 
-[Unreleased]: https://github.com/9uiLe/swift-app-macros/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/9uiLe/swift-app-macros/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/9uiLe/swift-app-macros/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/9uiLe/swift-app-macros/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/9uiLe/swift-app-macros/releases/tag/0.1.0

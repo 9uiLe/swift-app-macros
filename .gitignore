@@ -20,3 +20,4 @@ DerivedData/
 
 # Tooling caches (local, not source)
 .tokensave/
+__pycache__/
