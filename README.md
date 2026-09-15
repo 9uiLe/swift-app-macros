@@ -101,7 +101,7 @@ The detailed guides are in Japanese.
 | [`@SkipEquatable`](docs/skip-equatable.md) | Property exclusion and its correctness conditions |
 | [`EquatableBodyView`](docs/equatable-body-view.md) | View definition and state ownership |
 | [Actor isolation](docs/actor-isolation.md) | Swift Evolution rules, Apple API contracts, and WWDC references |
-| [Releasing](docs/releasing.md) | Owner authentication, release commands, CI, and repository protection |
+| [Release design and operations](docs/releasing.md) | Publication model, commands, recovery, and repository protection |
 
 ## Development
 
@@ -111,8 +111,20 @@ swift test
 ```
 
 The suite covers macro expansion, compiled equality, and mounted macOS views.
-CI also builds for iOS Simulator. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-commands and coding conventions, and [CHANGELOG.md](CHANGELOG.md) for releases.
+CI validates the Swift package, the iOS Simulator build, and release tooling on
+PRs and pushes to `master`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development environment, checks, and contribution process.
+
+## Releases and maintenance
+
+`9uiLe` maintains this public repository and publishes source releases. Changes
+enter `master` through PRs. Local release commands use the owner's GitHub CLI
+authentication to prepare version PRs and publish commits that pass `master` CI.
+GitHub Actions runs with read-only credentials.
+
+Each package version has an annotated Git tag and a GitHub Release containing
+its [CHANGELOG](CHANGELOG.md) entries. The [release guide](docs/releasing.md)
+defines the workflow and publication requirements.
 
 ## Community and license
 
