@@ -1,62 +1,41 @@
 #if canImport(SwiftUI)
     import SwiftUI
 
-    /// `.equatable()` を「定義側の body」に焼き込み、使用側の付け忘れ（サイレント失敗）を
-    /// 原理的に不可能にする `View`。
+    /// A MainActor view whose default `body` applies `.equatable()` to its content.
     ///
-    /// 通常の `@Equatable` + `.equatable()` は 2 箇所セットで書く必要があり、使用側で
-    /// `.equatable()` を忘れると「コンパイル成功・無警告・効果ゼロ」のサイレント失敗になる。
-    /// `EquatableBodyView` は本体を `body` ではなく `equatableBody` に書かせ、`body` の既定実装が
-    /// `.equatable()` 相当の再描画抑制を適用するため、使用側は通常の `Child(...)` 記法の
-    /// まま再描画抑制が効く。
+    /// Declare conformance as `: @MainActor EquatableBodyView` when using `@Equatable`.
+    /// Call sites use the view directly. Equal parent inputs suppress content updates.
     ///
-    /// **適用範囲は stateless + 自己所有状態（`@State` / `@StateObject`）限定**。自己所有状態は
-    /// 保持できるが比較対象外（変更は `.equatable()` ゲートの下流を直接 invalidate するため
-    /// stale にならない）。`@ObservedObject` / `@Bindable` / `@Binding` は親が参照先を
-    /// 差し替えても比較に反映されず stale バグになるため、`@Equatable` が診断エラーにする。
-    /// また本体を `body` に直書きすると既定実装の `.equatable()` ゲートをバイパスするため、これも
-    /// `@Equatable` が診断エラーにする。
+    /// Compared properties must represent the inputs that determine display and actions.
+    /// `@Equatable` excludes closures and known SwiftUI dynamic properties. Owned
+    /// `@State` / `@StateObject` are supported. Read replaceable `@ObservedObject`,
+    /// `@Bindable`, or `@Binding` sources in a parent and pass comparable values.
+    /// Excluded values must remain valid while compared inputs are equal.
     ///
-    /// ```swift
-    /// @Equatable
-    /// struct ChipView: EquatableBodyView {
-    ///     let title: String
-    ///     let onTap: () -> Void                     // クロージャ型は自動で比較対象外
-    ///
-    ///     var equatableBody: some View {            // body ではなく equatableBody に書く
-    ///         Button(title, action: onTap)
-    ///     }
-    /// }
-    ///
-    /// // 使用側は .equatable() 不要:
-    /// ChipView(title: "x", onTap: onTap)
-    /// ```
-    ///
-    /// > 再描画抑制のランタイム効果は、マウント済みヒエラルキーで非 Equatable な統制用
-    /// > View と比較するテスト（`RenderSuppressionTests`）が保証する。
+    /// Implement `equatableBody` and leave `body` to the default implementation.
+    /// `@Equatable` diagnoses a directly declared `body` or a replaceable source.
+    @MainActor
     public protocol EquatableBodyView: View, Equatable {
         associatedtype EquatableBody: View
-        /// 重い本体をここに書く（`body` は既定実装が `.equatable()` 注入に専有している）。
-        @ViewBuilder @MainActor var equatableBody: EquatableBody { get }
+
+        /// The content whose updates from parent inputs are governed by equality.
+        @ViewBuilder var equatableBody: EquatableBody { get }
     }
 
-    extension EquatableBodyView {
-        public var body: some View {
-            _EquatableHost(host: self).equatable()
+    public extension EquatableBodyView {
+        var body: some View {
+            EquatableBodyHost(host: self).equatable()
         }
     }
 
-    /// `nonisolated struct`（SE-0449）により `==` はコンパイラ検査下で isolation なしに
-    /// `host` を読める。不変条件として「準拠型の比較対象プロパティは値型 / Sendable のみ」
-    /// を前提とする（`@MainActor` 隔離下で `nonisolated ==` から安全に読むため・SE-0434）。
-    private nonisolated struct _EquatableHost<Content: EquatableBodyView>: View, Equatable {
+    private struct EquatableBodyHost<Content: EquatableBodyView>: View, @MainActor Equatable {
         let host: Content
 
         static func == (lhs: Self, rhs: Self) -> Bool {
             lhs.host == rhs.host
         }
 
-        @MainActor var body: Content.EquatableBody {
+        var body: Content.EquatableBody {
             host.equatableBody
         }
     }

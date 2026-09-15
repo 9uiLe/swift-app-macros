@@ -25,7 +25,7 @@ review.
 
 ```bash
 swift build
-swift test        # runs the full macro + SwiftUI test suite
+swift test
 ```
 
 For SwiftUI-facing changes (`EquatableBodyView`), also verify the iOS build the
@@ -36,6 +36,21 @@ xcodebuild build -quiet \
   -scheme swift-app-macros \
   -destination "generic/platform=iOS Simulator"
 ```
+
+`swift test` covers macro expansion and diagnostics, compiled comparisons, and
+mounted macOS SwiftUI views. The iOS command verifies compilation; it does not
+run the macOS rendering tests on iOS.
+
+## Architecture
+
+Read the [design overview](docs/design.md) for the public contracts and the
+source and test map. The [actor isolation design](docs/actor-isolation.md)
+connects the generated code to Swift Evolution and SwiftUI API requirements.
+
+Property selection, actor isolation, and comparison placement are independent
+policies. Keep their behavior consistent across the member and extension macro
+roles. Invalid declarations must produce diagnostics without partial equality
+code or conformance generation.
 
 ## Pull requests
 
@@ -52,8 +67,9 @@ xcodebuild build -quiet \
 - Match the surrounding style; do not reformat unrelated code.
 - Prefer clear diagnostics over silent behavior in macro expansion — a
   contributor who misuses a macro should get an actionable error or warning.
-- Document non-obvious design decisions in the code or in `docs/` rather than in
-  the commit message alone.
+- Follow [AGENTS.md](AGENTS.md): behavior belongs in code, requirements in tests,
+  change motivation in commit messages, and non-obvious constraints or rejected
+  alternatives in code comments. Public DocC comments describe the contract.
 
 ## Reporting bugs and requesting features
 

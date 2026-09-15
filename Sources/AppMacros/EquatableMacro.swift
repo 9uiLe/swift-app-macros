@@ -1,21 +1,43 @@
+/// Controls the placement or isolation of generated equality.
 public enum EquatableExpansion: Sendable {
+    /// Places equality in an extension with automatic actor isolation.
     case `extension`
+    /// Isolates equality and its conformance to MainActor.
+    case mainActor
+    /// Generates a nonisolated equality member.
+    /// Compared properties must be accessible and comparable from nonisolated code.
     case nonisolated
 }
 
-/// Generates `Equatable` conformance from stored properties.
+/// Generates equality and `Equatable` conformance for a struct's stored inputs.
 ///
-/// The default is automatic: structs that syntactically conform to `View` or
-/// carry a global-actor attribute use a `nonisolated static func ==` member,
-/// while other structs use an extension conformance. Pass `.extension` or
-/// `.nonisolated` to force either shape.
+/// Automatic isolation follows an explicitly isolated `Equatable` or
+/// `EquatableBodyView` conformance, a `nonisolated` type declaration, a recognized
+/// global-actor attribute, or a direct `View` conformance, in that order.
+/// Ordinary views use MainActor. Global-actor attributes are recognized as
+/// `MainActor` or names ending in `Actor` with at least six characters.
+/// Without a recognized isolation, equality is generated in an extension and
+/// follows the compiler's isolation inference.
 ///
-/// Closure exclusion is syntactic. Function-typed properties are skipped, but
-/// closure types hidden behind a typealias or inferred from a non-literal
-/// initializer must be marked with `@SkipEquatable`.
+/// Pass `.mainActor` or `.nonisolated` to select isolation explicitly, or
+/// `.extension` to place equality in an extension with automatic isolation.
+/// The argument must directly name an enum case or be `nil`.
 ///
-/// When adopting this macro, delete any hand-written `static func ==` in the
-/// same edit to avoid an invalid redeclaration.
+/// Directly declared `Equatable`, `EquatableBodyView`, `Hashable`, and `Comparable`
+/// conformances must match the comparison's isolation. For a MainActor view,
+/// write `: @MainActor EquatableBodyView` or `: View, @MainActor Equatable`, or
+/// let the macro add Equatable conformance to a `View` declaration.
+/// `InferIsolatedConformances` is not required.
+///
+/// Computed, static, and lazy properties, top-level closures, known SwiftUI
+/// dynamic properties, and properties marked `@SkipEquatable` are excluded.
+/// Excluded values do not affect equality. A view using `.equatable()` must
+/// remain correct when those values change without a compared input changing.
+///
+/// Closure detection uses syntax. Mark closures hidden behind a typealias or
+/// inferred from a non-literal initializer with `@SkipEquatable` to exclude them.
+/// Do not declare a competing equality operator. Invalid declarations produce
+/// diagnostics without a generated comparison or additional conformance.
 @attached(extension, conformances: Equatable, names: named(==))
 @attached(member, names: named(==))
 public macro Equatable(_ expansion: EquatableExpansion? = nil) =
@@ -23,9 +45,9 @@ public macro Equatable(_ expansion: EquatableExpansion? = nil) =
 
 /// Excludes one stored property from generated `Equatable` comparisons.
 ///
-/// This marker applies to a single binding. Split multi-binding declarations
-/// before marking a property, for example `let a = 1` and
-/// `@SkipEquatable let b = makeHandler()`.
+/// Apply this marker to a declaration containing one stored property.
+/// A change to the excluded value does not make instances unequal. When equality
+/// gates view updates, using the previous excluded value must remain correct.
 @attached(peer)
 public macro SkipEquatable() =
     #externalMacro(module: "AppMacrosMacros", type: "SkipEquatableMacro")

@@ -3,86 +3,120 @@
 [![Swift](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2F9uiLe%2Fswift-app-macros%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/9uiLe/swift-app-macros)
 [![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2F9uiLe%2Fswift-app-macros%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/9uiLe/swift-app-macros)
 
-Production-oriented Swift macros for app development.
+Generate equality for Swift structs and use it to suppress SwiftUI view updates
+when parent inputs are equal.
 
-`swift-app-macros` ships [`AppMacros`](Sources/AppMacros): SwiftUI redraw
-optimization via `@Equatable`, `@SkipEquatable`, and `EquatableBodyView`.
+The `AppMacros` library provides three APIs:
+
+| API | Purpose |
+| --- | --- |
+| `@Equatable` | Generate `==` and `Equatable` conformance from stored properties |
+| `@SkipEquatable` | Exclude a stored property from comparison |
+| `EquatableBodyView` | Apply `.equatable()` through the view's default `body` |
 
 ## Quick start
+
+`EquatableBodyView` defines a view with an equality boundary. Implement
+`equatableBody` and use the view directly from SwiftUI.
 
 ```swift
 import AppMacros
 import SwiftUI
 
 @Equatable
-struct CounterRow: EquatableBodyView {
+struct CounterRow: @MainActor EquatableBodyView {
     let value: Int
 
     var equatableBody: some View {
-        Text("\(value)")
+        Text(value.formatted())
     }
 }
 
-// No `.equatable()` at call sites — baked into EquatableBodyView.
-CounterRow(value: 1)
+struct CounterScreen: View {
+    let count: Int
+
+    var body: some View {
+        CounterRow(value: count)
+    }
+}
 ```
 
-For intermediate views, use `@Equatable` and apply `.equatable()` at the call site.
+For a regular `View`, attach `@Equatable` and apply `.equatable()` where it is used.
+Ordinary View equality and its conformance are MainActor-isolated. The
+`.mainActor` and `.nonisolated` arguments select isolation explicitly;
+`.extension` selects the placement of the comparison function.
 
-## Compatibility
+Compared properties must capture the values that determine the view's display
+and actions. Closures and known SwiftUI state wrappers are excluded. A change
+only to an excluded property does not make the views unequal. See the
+[usage guide](docs/adoption.md) for input and state ownership.
+
+## Requirements
 
 | Requirement | Version |
-|---|---|
-| Swift tools | **6.3** (`swiftLanguageModes: [.v6]`) |
-| Platforms | **iOS 26+**, **macOS 26+** |
-| swift-syntax | `603.0.2` (exact pin) |
+| --- | --- |
+| Swift tools | 6.3 |
+| Swift language mode | 6 |
+| Platforms | iOS 26+, macOS 26+ |
+| swift-syntax | 603.0.2, pinned exactly |
 
-This is an early package targeting the latest Apple SDKs. Older OS / Swift versions are not supported.
+## Use this checkout
 
-## Installation
+This documentation describes the source in this checkout. Add it as a local
+Swift package dependency, adjusting the path to its location, and link the
+`AppMacros` product from your target.
 
 ```swift
-// Package.swift
-dependencies: [
-    .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.2.0"),
-],
-targets: [
-    .target(name: "YourFeature", dependencies: [
-        .product(name: "AppMacros", package: "swift-app-macros"),
-    ]),
-]
+// swift-tools-version: 6.3
+import PackageDescription
+
+let package = Package(
+    name: "YourApp",
+    platforms: [.iOS(.v26), .macOS(.v26)],
+    dependencies: [
+        .package(path: "../swift-app-macros"),
+    ],
+    targets: [
+        .target(
+            name: "YourFeature",
+            dependencies: [
+                .product(name: "AppMacros", package: "swift-app-macros"),
+            ]
+        ),
+    ]
+)
 ```
+
+Use a Swift tools 6.3 manifest. In Xcode, add the checkout as a local package
+and select the `AppMacros` library for your app target.
 
 ## Documentation
 
-The three APIs and the reasoning behind them are documented in [`docs/`](docs/README.md):
+The detailed guides are in Japanese.
 
-| Topic | Summary |
-|-------|---------|
-| [Rationale](docs/rationale.md) | Why an `Equatable` macro — the SwiftUI / Swift 6 pitfalls it removes |
-| [`@Equatable`](docs/equatable.md) | Generated conformance: generation form, auto-exclusions, generics, examples |
-| [`@SkipEquatable`](docs/skip-equatable.md) | Exclude a specific stored property from comparison |
-| [`EquatableBodyView`](docs/equatable-body-view.md) | Bake `.equatable()` into the view definition |
-| [Adoption guide](docs/adoption.md) | Safe adoption checklist and known limitations |
+| Topic | Contents |
+| --- | --- |
+| [Usage guide](docs/adoption.md) | Choose an API and define comparable inputs |
+| [Design](docs/design.md) | Contracts, implementation modules, and test coverage |
+| [`@Equatable`](docs/equatable.md) | Isolation, placement, property selection, generics, and diagnostics |
+| [`@SkipEquatable`](docs/skip-equatable.md) | Property exclusion and its correctness conditions |
+| [`EquatableBodyView`](docs/equatable-body-view.md) | View definition and state ownership |
+| [Actor isolation](docs/actor-isolation.md) | Swift Evolution rules, Apple API contracts, and WWDC references |
 
-## Testing
+## Development
 
-```bash
-swift test   # 50 tests / 4 suites
+```sh
+swift build
+swift test
 ```
 
-CI runs on pull requests (`.github/workflows/ci.yml`).
+The suite covers macro expansion, compiled equality, and mounted macOS views.
+CI also builds for iOS Simulator. See [CONTRIBUTING.md](CONTRIBUTING.md) for
+commands and coding conventions, and [CHANGELOG.md](CHANGELOG.md) for releases.
 
-## Changelog
+## Community and license
 
-Release notes are in [CHANGELOG.md](CHANGELOG.md).
-
-## Contributing
-
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[Code of Conduct](CODE_OF_CONDUCT.md). For security issues, follow the
-[Security Policy](SECURITY.md) instead of opening a public issue.
-
-## License
+Follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report security issues using
+the [Security Policy](SECURITY.md).
 
 MIT — see [LICENSE](LICENSE).

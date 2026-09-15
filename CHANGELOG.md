@@ -6,6 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking**: Ordinary View and detected global-actor types use equality and
+  Equatable conformance isolated to their actor. Directly declared conformances
+  must match that isolation, such as `@MainActor Equatable` or
+  `@MainActor EquatableBodyView`. See the [usage guide](docs/adoption.md).
+- EquatableBodyView compares content on MainActor.
+- SwiftUI dynamic-property exclusion is independent of isolation and expansion
+  placement, including structs without a syntactically visible View conformance.
+- Invalid declarations produce diagnostics without equality or conformance generation.
+
+### Added
+
+- `.mainActor` mode for types whose isolation cannot be inferred syntactically.
+- Diagnostics for unsupported expansion expressions, conflicting equality witnesses,
+  and mismatched conformance isolation, with isolation fix-its.
+- Compiled tests for non-Sendable inputs, isolated generic conformances, custom actors,
+  and detached comparisons; mounted macOS rendering tests for MainActor equality.
+
+### Fixed
+
+- Generated generic constraints apply only to parameters referenced by compared
+  property types.
+- Qualified and actor-annotated conformances are recognized without duplicate generation.
+
 ## [0.2.0] - 2026-07-15
 
 ### Changed
