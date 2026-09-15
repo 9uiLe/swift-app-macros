@@ -1,35 +1,57 @@
-# `EquatableBodyView`（付け忘れ防止）
+# `EquatableBodyView`
 
-> [ドキュメント目次](README.md) ・ [README](../README.md)
+> [ドキュメント目次](README.md) ・ [利用ガイド](adoption.md)
 
-`@Equatable` + `.equatable()` は 2 箇所セットで書く必要があり、**使用側で `.equatable()` を
-忘れると「コンパイル成功・無警告・効果ゼロ」のサイレント失敗**になる。
+`EquatableBodyView` は `View` と `Equatable` を継承する MainActor の protocol。既定の `body` が `.equatable()` による比較境界を設ける。親から渡す入力が等しい場合に、`equatableBody` の再評価を抑制する。
 
-`EquatableBodyView` は `.equatable()` を**定義側の body 既定実装に焼き込む**。
-本体は `body` ではなく `equatableBody` に書く。
+## View を定義する
 
 ```swift
+import AppMacros
+import SwiftUI
+
 @Equatable
-struct ChipView: EquatableBodyView {
+struct ChipView: @MainActor EquatableBodyView {
     let title: String
-    let onTap: () -> Void           // 自動除外
+    let onTap: @MainActor () -> Void
 
     var equatableBody: some View {
         Button(title, action: onTap)
     }
 }
 
-ChipView(title: "x", onTap: onTap)  // 使用側は .equatable() 不要
+struct ChipPanel: View {
+    var body: some View {
+        ChipView(title: "Done", onTap: {})
+    }
+}
 ```
 
-**適用範囲は stateless + 自己所有状態（`@State` / `@StateObject`）限定**。自己所有状態は
-保持できるが比較対象外（変更はゲート下流を直接 invalidate するため stale にならない）。
-`@Equatable` が以下を診断エラーにする:
+内容は `equatableBody` に実装する。使用側では通常の View として扱い、`.equatable()` の追加は不要。`@Equatable` が生成する比較は `title` を使用し、`onTap` を除外する。
 
-- `@ObservedObject` / `@Bindable` / `@Binding`（親が参照先を差し替えても比較に現れない）
-- `body` の直書き（本体は `equatableBody` へ）
+等しい入力で以前のコールバックを使い続けても、正しく動作することが利用条件。コールバックの振る舞いが変わる場合は、その変化を比較可能な入力に含める。詳しくは [利用ガイド](adoption.md) を参照。
 
-## 関連
+## 準拠の隔離
 
-- [`@Equatable`](equatable.md)
-- [採用ガイドと既知の制限](adoption.md)
+`@Equatable` と組み合わせる宣言は `: @MainActor EquatableBodyView` とする。比較関数と Equatable 準拠だけでなく、それを継承する EquatableBodyView 準拠も MainActor に隔離する。
+
+既定の `body` が使用する内部 View も MainActor の Equatable 準拠を持ち、内容の比較を呼び出す。準拠の隔離が一致しない場合、`@Equatable` は診断と Fix-it を提示する。言語規則は [actor 隔離の設計](actor-isolation.md) を参照。
+
+## 状態の扱い
+
+| プロパティ | 利用条件 |
+| --- | --- |
+| 通常の格納値 | 表示や操作を決める入力として比較する |
+| `@State` / `@StateObject` | View が所有する状態として使用できる。比較からは除外する |
+| 環境などの既知の SwiftUI wrapper | 比較から除外する。SwiftUI の依存関係として扱う |
+| `@ObservedObject` / `@Bindable` / `@Binding` | `@Equatable` がエラーにする。親で読み、比較可能な値を渡す |
+
+親が参照先を差し替えられる状態を比較から除外すると、等しいという判定によって古い参照先を使い続ける可能性がある。子 View は値入力を受け取り、状態の読み書きは所有者が扱う構成にする。
+
+SwiftUI が追跡する状態や環境の更新は、親入力の比較とは別の依存関係で処理される。比較境界は、すべての `equatableBody` 評価回数を固定する契約ではない。
+
+## `body` の契約
+
+`body` は protocol の既定実装を使用する。直接実装すると比較境界を経由しないため、`@Equatable` はエラーにし、`equatableBody` への改名を Fix-it で提示する。
+
+別 extension にある `body` や、独自 protocol を経由した準拠はマクロから検出できない場合がある。検出範囲は [`@Equatable`](equatable.md) を参照。
