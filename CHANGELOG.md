@@ -15,6 +15,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replaceable observable sources, or explicitly skipped content keep ordinary
   update behavior. This avoids retaining stale actions or child views.
 
+### Changed
+
+- **Breaking for older development toolchains**: Pin swift-syntax `604.0.0`,
+  aligned with Swift 6.4. Version 0.4.0 is validated with Xcode 27.0 and
+  Apple Swift 6.4. Use Xcode 27.0 for this release; projects that must stay on
+  Xcode 26.4 can continue using AppMacros 0.3.0. The deployment minimum stays
+  iOS 26 / macOS 26.
+
 ## [0.3.0] - 2026-09-16
 
 ### Changed
