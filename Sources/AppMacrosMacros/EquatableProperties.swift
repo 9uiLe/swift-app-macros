@@ -11,6 +11,8 @@ struct EquatableProperties {
     private(set) var properties: [EquatableProperty] = []
     private(set) var diagnostics: [Diagnostic] = []
     private(set) var hasViewBody = false
+    private(set) var hasEquatableBody = false
+    private(set) var hasUnsafeParentInput = false
     private var hasExcludedInput = false
 
     init(declaration: StructDeclSyntax, isBodyView: Bool) {
@@ -36,20 +38,27 @@ struct EquatableProperties {
 
     private mutating func inspect(_ variable: VariableDeclSyntax, isConditional: Bool, isBodyView: Bool) {
         let wrappers = variable.attributes.compactMap { $0.as(AttributeSyntax.self) }.map { lastTypeName($0.attributeName) }
+        if !Self.parentOwnedWrappers.isDisjoint(with: wrappers) {
+            hasUnsafeParentInput = true
+        }
         if isBodyView, !Self.parentOwnedWrappers.isDisjoint(with: wrappers) {
             diagnose(variable, .equatableBodyViewForbiddenDynamicProperty)
         }
         for binding in variable.bindings {
-            if binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text == "body" {
+            let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+            if name == "body" {
                 hasViewBody = hasViewBody || isViewBodyType(binding.typeAnnotation?.type)
                 if isBodyView {
                     diagnoseBody(variable, binding: binding)
                 }
+            } else if name == "equatableBody" {
+                hasEquatableBody = hasEquatableBody || isViewBodyType(binding.typeAnnotation?.type)
             }
         }
 
         if hasAttribute(named: "SkipEquatable", in: variable.attributes) {
             hasExcludedInput = hasExcludedInput || variable.bindings.contains(where: isStored)
+            hasUnsafeParentInput = hasUnsafeParentInput || variable.bindings.contains(where: isStored)
             return
         }
         if !Self.dynamicPropertyWrappers.isDisjoint(with: wrappers) {
@@ -67,6 +76,7 @@ struct EquatableProperties {
             }
             if isTopLevelFunctionType(binding.typeAnnotation?.type) || hasTopLevelClosureLiteralInitializer(binding) {
                 hasExcludedInput = true
+                hasUnsafeParentInput = true
                 continue
             }
             if isConditional {

@@ -14,6 +14,9 @@ enum EquatableDiagnostic: String, DiagnosticMessage {
     case viewLikeStructNeedsIsolation
     case existingEquality
     case unsupportedExpansion
+    case autoEquatableViewRequiresView
+    case autoEquatableViewDirectBody
+    case autoEquatableViewMissingBody
 
     var message: String {
         switch self {
@@ -37,6 +40,12 @@ enum EquatableDiagnostic: String, DiagnosticMessage {
             "@Equatable generates `==`; remove the hand-written equality operator or remove @Equatable"
         case .unsupportedExpansion:
             "@Equatable requires a literal .mainActor, .nonisolated, .extension, or nil expansion argument"
+        case .autoEquatableViewRequiresView:
+            "@AutoEquatableView requires a struct with a direct View conformance and an equatableBody property"
+        case .autoEquatableViewDirectBody:
+            "@AutoEquatableView generates body; implement equatableBody instead"
+        case .autoEquatableViewMissingBody:
+            "@AutoEquatableView requires `var equatableBody: some View`"
         }
     }
 

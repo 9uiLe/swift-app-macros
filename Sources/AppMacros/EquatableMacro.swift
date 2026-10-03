@@ -51,3 +51,18 @@ public macro Equatable(_ expansion: EquatableExpansion? = nil) =
 @attached(peer)
 public macro SkipEquatable() =
     #externalMacro(module: "AppMacrosMacros", type: "SkipEquatableMacro")
+
+/// Adds an equality boundary when every parent-owned input can be compared.
+///
+/// Apply to a struct that directly conforms to `View` and implements
+/// `equatableBody`. Stored closures, `@SkipEquatable`, `@Binding`, `@Bindable`,
+/// and `@ObservedObject` make the view use an ordinary `body` instead of an
+/// equality boundary. Other known SwiftUI dynamic properties are managed by
+/// SwiftUI and remain outside the comparison.
+///
+/// The fallback preserves updates when an action, source, or arbitrary child
+/// view changes. Its instances do not conform to `Equatable` automatically.
+@attached(member, names: named(body), named(==))
+@attached(extension, conformances: EquatableBodyView, Equatable, names: named(==))
+public macro AutoEquatableView() =
+    #externalMacro(module: "AppMacrosMacros", type: "AutoEquatableViewMacro")
