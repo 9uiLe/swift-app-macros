@@ -6,13 +6,14 @@
 Generate equality for Swift structs and use it to suppress SwiftUI view updates
 when parent inputs are equal.
 
-The `AppMacros` library provides three APIs:
+The `AppMacros` library provides four APIs:
 
 | API | Purpose |
 | --- | --- |
 | `@Equatable` | Generate `==` and `Equatable` conformance from stored properties |
 | `@SkipEquatable` | Exclude a stored property from comparison |
 | `EquatableBodyView` | Apply `.equatable()` through the view's default `body` |
+| `@AutoEquatableView` | Generate a gated body for comparable inputs, with an ordinary View fallback for unsafe parent inputs |
 
 ## Quick start
 
@@ -42,6 +43,9 @@ struct CounterScreen: View {
 ```
 
 For a regular `View`, attach `@Equatable` and apply `.equatable()` where it is used.
+For reusable views that can receive actions, bindings, or arbitrary child views,
+`@AutoEquatableView` chooses the gate only when all parent-owned inputs are safe
+to compare. See the [adaptive view guide](docs/auto-equatable-view.md).
 Ordinary View equality and its conformance are MainActor-isolated. The
 `.mainActor` and `.nonisolated` arguments select isolation explicitly;
 `.extension` selects the placement of the comparison function.
@@ -100,6 +104,7 @@ The detailed guides are in Japanese.
 | [`@Equatable`](docs/equatable.md) | Isolation, placement, property selection, generics, and diagnostics |
 | [`@SkipEquatable`](docs/skip-equatable.md) | Property exclusion and its correctness conditions |
 | [`EquatableBodyView`](docs/equatable-body-view.md) | View definition and state ownership |
+| [`@AutoEquatableView`](docs/auto-equatable-view.md) | Safe automatic gating and fallback for reusable views |
 | [Actor isolation](docs/actor-isolation.md) | Swift Evolution rules, Apple API contracts, and WWDC references |
 | [Release design and operations](docs/releasing.md) | Publication model, commands, recovery, and repository protection |
 

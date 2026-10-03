@@ -10,6 +10,7 @@ AppMacros を使う View では、親から渡す比較可能な入力と、Swif
 | --- | --- | --- |
 | 使用箇所で比較を適用する View | `@Equatable` と `View` | `.equatable()` を付ける |
 | 定義に比較を組み込む View | `@Equatable` と `@MainActor EquatableBodyView` | 通常の View として使う |
+| 安全に比較できる場合だけ更新を抑える View | `@AutoEquatableView` と `View` | 通常の View として使う |
 | 格納値を比較する一般の構造体 | `@Equatable` | `==` / `!=` を使う |
 
 ### 通常の View
@@ -57,6 +58,8 @@ struct CounterRow: @MainActor EquatableBodyView {
 ```
 
 `EquatableBodyView` の既定の `body` が `.equatable()` を適用する。内容は `equatableBody` に実装し、呼び出し元は `CounterRow(value: 1)` として使う。詳細は [`EquatableBodyView`](equatable-body-view.md) を参照。
+
+`@AutoEquatableView` は、表示専用の入力を比較できる場合に同じ境界を生成する。`@Binding`、`@ObservedObject`、`@Bindable`、クロージャ、`@SkipEquatable` の格納値がある場合は通常の `body` を生成する。更新抑制のためにこれらを比較から黙って外さない。詳細は [自動比較 View](auto-equatable-view.md) を参照。
 
 ## 比較可能な入力を定義する
 

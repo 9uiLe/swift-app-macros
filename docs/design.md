@@ -11,6 +11,7 @@ AppMacros は、SwiftUI の View に渡す入力を比較し、入力が等し�
 | [`@Equatable`](equatable.md) | 比較対象の格納プロパティから `==` と `Equatable` 準拠を生成する |
 | [`@SkipEquatable`](skip-equatable.md) | 指定した格納プロパティを比較対象から除外する |
 | [`EquatableBodyView`](equatable-body-view.md) | 既定の `body` に `.equatable()` を適用し、内容を `equatableBody` で受け取る |
+| [`@AutoEquatableView`](auto-equatable-view.md) | 親入力が安全に比較可能な View だけに比較境界を追加する |
 
 `.equatable()` は、前後の View が等しい場合に子の更新を抑制する比較境界を作る。`@Equatable` は比較を提供し、通常の `View` では使用箇所で `.equatable()` を適用する。`EquatableBodyView` は、この比較境界を View の定義に含める。
 
@@ -43,6 +44,7 @@ SwiftUI が管理する状態・環境は、親からの値入力とは別の依
 | [公開マクロ宣言](../Sources/AppMacros/EquatableMacro.swift) | 引数と利用条件 |
 | [EquatableBodyView.swift](../Sources/AppMacros/EquatableBodyView.swift) | 比較境界を含む View protocol と MainActor の内部 View |
 | [EquatableMacro.swift](../Sources/AppMacrosMacros/EquatableMacro.swift) | member / extension のマクロ入口と診断の通知 |
+| [AutoEquatableViewMacro.swift](../Sources/AppMacrosMacros/AutoEquatableViewMacro.swift) | 安全な View の比較境界と通常 View へのフォールバック |
 | [EquatableExpansion.swift](../Sources/AppMacrosMacros/EquatableExpansion.swift) | 引数、隔離、準拠の整合性、配置、コード生成 |
 | [EquatableProperties.swift](../Sources/AppMacrosMacros/EquatableProperties.swift) | 比較対象と SwiftUI 状態の分類 |
 | [EquatableSyntax.swift](../Sources/AppMacrosMacros/EquatableSyntax.swift) | 型・宣言の構文判定、アクセス修飾、型パラメーター制約 |
@@ -59,6 +61,7 @@ member と extension の両方の入口が同じ展開計画を使用する。�
 | 比較対象・除外・不正な宣言 | [EquatablePropertyTests.swift](../Tests/AppMacrosTests/EquatablePropertyTests.swift) |
 | コンパイルされた比較・隔離された入力 | [EquatableRuntimeTests.swift](../Tests/AppMacrosTests/EquatableRuntimeTests.swift) |
 | EquatableBodyView の展開・状態の扱い | [EquatableBodyViewTests.swift](../Tests/AppMacrosTests/EquatableBodyViewTests.swift) |
+| 自動境界の選択と通常更新へのフォールバック | [AutoEquatableViewTests.swift](../Tests/AppMacrosTests/AutoEquatableViewTests.swift) |
 | マウント済み View の再評価・MainActor 上の比較 | [RenderSuppressionTests.swift](../Tests/AppMacrosTests/RenderSuppressionTests.swift) |
 
 描画テストは macOS の `NSHostingView` を使用する。iOS はビルドで検証する。コマンドと開発時の規約は [CONTRIBUTING.md](../CONTRIBUTING.md) を参照。
