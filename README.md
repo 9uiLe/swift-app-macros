@@ -76,7 +76,7 @@ let package = Package(
     name: "YourApp",
     platforms: [.iOS(.v26), .macOS(.v26)],
     dependencies: [
-        .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.3.0"),
+        .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.4.0"),
     ],
     targets: [
         .target(
