@@ -61,8 +61,9 @@ only to an excluded property does not make the views unequal. See the
 | --- | --- |
 | Swift tools | 6.3 |
 | Swift language mode | 6 |
+| Validated Xcode / compiler | Xcode 27.0 / Apple Swift 6.4 |
 | Platforms | iOS 26+, macOS 26+ |
-| swift-syntax | 603.0.2, pinned exactly |
+| swift-syntax | 604.0.0, pinned exactly |
 
 ## Installation
 
@@ -76,7 +77,7 @@ let package = Package(
     name: "YourApp",
     platforms: [.iOS(.v26), .macOS(.v26)],
     dependencies: [
-        .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.3.0"),
+        .package(url: "https://github.com/9uiLe/swift-app-macros.git", from: "0.4.0"),
     ],
     targets: [
         .target(
@@ -89,7 +90,7 @@ let package = Package(
 )
 ```
 
-Use a Swift tools 6.3 manifest. In Xcode, add
+Use a Swift tools 6.3 manifest and Xcode 27.0 for this release. In Xcode, add
 `https://github.com/9uiLe/swift-app-macros` as a package dependency and select
 the `AppMacros` library for your app target.
 

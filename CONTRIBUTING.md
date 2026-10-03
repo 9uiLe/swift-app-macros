@@ -24,15 +24,18 @@ case it supports. Report security issues through [SECURITY.md](SECURITY.md).
 
 | Component | Requirement |
 | --- | --- |
-| Swift tools | 6.3, supplied by Xcode 26.4 or later |
+| Swift tools | 6.3 |
+| Validated Xcode / compiler | Xcode 27.0 / Apple Swift 6.4 |
 | Swift language mode | 6 |
 | Target platforms | iOS 26+, macOS 26+ |
-| swift-syntax | 603.0.2, pinned exactly |
+| swift-syntax | 604.0.0, pinned exactly |
 | Release tooling tests | Python 3.10+ and Git |
 | Release commands | Python 3.10+, Git, and GitHub CLI authenticated as the owner |
 
-The Swift tools version and SwiftSyntax pin define compiler compatibility.
-Change them only when the package's compiler requirements call for it.
+The manifest's Swift tools version and the pinned SwiftSyntax release serve
+different purposes. SwiftSyntax 604 is aligned with Swift 6.4; this release is
+validated with Xcode 27.0. Change the pin or advertised compiler only after
+building and testing that toolchain.
 
 ## Implementing a change
 

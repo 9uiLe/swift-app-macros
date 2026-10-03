@@ -6,12 +6,22 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-04
+
 ### Added
 
 - `@AutoEquatableView` gives reusable SwiftUI views an equality boundary when
   their parent-owned inputs can be compared. Views with closures, bindings,
   replaceable observable sources, or explicitly skipped content keep ordinary
   update behavior. This avoids retaining stale actions or child views.
+
+### Changed
+
+- **Breaking for older development toolchains**: Pin swift-syntax `604.0.0`,
+  aligned with Swift 6.4. Version 0.4.0 is validated with Xcode 27.0 and
+  Apple Swift 6.4. Use Xcode 27.0 for this release; projects that must stay on
+  Xcode 26.4 can continue using AppMacros 0.3.0. The deployment minimum stays
+  iOS 26 / macOS 26.
 
 ## [0.3.0] - 2026-09-16
 
@@ -109,7 +119,8 @@ Initial public release.
 
 - Swift tools 6.3 (Xcode 26.4+), iOS 26+, macOS 26+, swift-syntax `603.0.2`.
 
-[Unreleased]: https://github.com/9uiLe/swift-app-macros/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/9uiLe/swift-app-macros/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/9uiLe/swift-app-macros/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/9uiLe/swift-app-macros/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/9uiLe/swift-app-macros/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/9uiLe/swift-app-macros/releases/tag/0.1.0

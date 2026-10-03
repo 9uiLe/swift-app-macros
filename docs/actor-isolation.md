@@ -2,7 +2,7 @@
 
 > [ドキュメント目次](README.md) ・ [設計概要](design.md)
 
-AppMacros は、MainActor で利用する View の比較と `Equatable` 準拠を MainActor に隔離する。基礎となる言語機能は、Swift 6.2 で実装された [SE-0470: Global-actor isolated conformances][se-0470]。パッケージの要件は Swift tools 6.3、Swift 6 language mode、iOS 26 / macOS 26 以降。
+AppMacros は、MainActor で利用する View の比較と `Equatable` 準拠を MainActor に隔離する。基礎となる言語機能は、Swift 6.2 で実装された [SE-0470: Global-actor isolated conformances][se-0470]。パッケージのマニフェストは Swift tools 6.3、Swift 6 language mode、iOS 26 / macOS 26 以降。現行版は swift-syntax 604.0.0 を使い、Xcode 27.0 / Apple Swift 6.4 で検証する。
 
 ## 型・比較関数・準拠
 
