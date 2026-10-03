@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `@AutoEquatableView` gives reusable SwiftUI views an equality boundary when
+  their parent-owned inputs can be compared. Views with closures, bindings,
+  replaceable observable sources, or explicitly skipped content keep ordinary
+  update behavior. This avoids retaining stale actions or child views.
+
 ## [0.3.0] - 2026-09-16
 
 ### Changed

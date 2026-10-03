@@ -10,12 +10,14 @@
         static var gatedBody = 0
         static var controlBody = 0
         static var comparisons = 0
+        static var environmentBody = 0
 
         static func reset() {
             parentBody = 0
             gatedBody = 0
             controlBody = 0
             comparisons = 0
+            environmentBody = 0
         }
     }
 
@@ -70,6 +72,30 @@
                 GatedChild(value: RenderValue(text: "\(driver.childValue)"), noise: driver.tick)
                 ControlChild(value: driver.childValue, noise: driver.tick)
             }
+        }
+    }
+
+    private final class EnvironmentDriver: ObservableObject {
+        @Published var dark = false
+    }
+
+    @AutoEquatableView
+    private struct EnvironmentChild: View {
+        let title: String
+        @Environment(\.colorScheme) private var scheme
+
+        var equatableBody: some View {
+            let _ = RenderLog.environmentBody += 1
+            return Text(verbatim: "\(title)-\(scheme == .dark ? "dark" : "light")")
+        }
+    }
+
+    private struct EnvironmentParent: View {
+        @ObservedObject var driver: EnvironmentDriver
+
+        var body: some View {
+            EnvironmentChild(title: "Status")
+                .environment(\.colorScheme, driver.dark ? .dark : .light)
         }
     }
 
@@ -129,7 +155,26 @@
             #expect(RenderLog.gatedBody >= gatedBaseline + 1)
         }
 
+        @Test
+        func `environment changes invalidate a gated child with equal parent inputs`() {
+            RenderLog.reset()
+            let driver = EnvironmentDriver()
+            let window = mount(EnvironmentParent(driver: driver))
+            defer { window.close() }
+
+            pump(until: { RenderLog.environmentBody >= 1 })
+            let baseline = RenderLog.environmentBody
+            driver.dark = true
+            pump(until: { RenderLog.environmentBody > baseline })
+
+            #expect(RenderLog.environmentBody > baseline)
+        }
+
         private func mount(_ driver: Driver) -> NSWindow {
+            mount(CountingParent(driver: driver))
+        }
+
+        private func mount(_ view: some View) -> NSWindow {
             _ = NSApplication.shared
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 300, height: 300),
@@ -138,7 +183,7 @@
                 defer: false,
             )
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: CountingParent(driver: driver))
+            window.contentView = NSHostingView(rootView: view)
             window.orderFrontRegardless()
             return window
         }

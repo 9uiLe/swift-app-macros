@@ -53,6 +53,7 @@ struct EquatableExpansionPlan {
     let placement: Placement
     let isolation: Isolation
     let properties: [EquatableProperty]
+    let hasUnsafeParentInput: Bool
     let diagnostics: [Diagnostic]
     let hasEquatableConformance: Bool
 
@@ -72,7 +73,14 @@ struct EquatableExpansionPlan {
 
         let analysis = EquatableProperties(declaration: declaration, isBodyView: conformances.contains("EquatableBodyView"))
         properties = analysis.properties
+        hasUnsafeParentInput = analysis.hasUnsafeParentInput
         var diagnostics = analysis.diagnostics
+        if lastTypeName(attribute.attributeName) == "AutoEquatableView", analysis.hasViewBody {
+            diagnostics.append(Diagnostic(node: Syntax(declaration.structKeyword), message: EquatableDiagnostic.autoEquatableViewDirectBody))
+        }
+        if lastTypeName(attribute.attributeName) == "AutoEquatableView", !analysis.hasEquatableBody, !analysis.hasViewBody {
+            diagnostics.append(Diagnostic(node: Syntax(declaration.structKeyword), message: EquatableDiagnostic.autoEquatableViewMissingBody))
+        }
         if requestedMode == nil {
             diagnostics.append(Diagnostic(node: Syntax(attribute), message: EquatableDiagnostic.unsupportedExpansion))
         }
